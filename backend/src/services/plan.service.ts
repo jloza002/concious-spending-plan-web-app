@@ -5,6 +5,11 @@ import {
   DEFAULT_SAVINGS,
   MISCELLANEOUS_RATE,
 } from "@csp/shared";
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
 import type { PlanCalculations, SpendingPlan } from "@csp/shared";
 import { AppError } from "../middleware/error-handler.js";
 
@@ -24,7 +29,7 @@ export async function createPlan(
   });
   if (existing) {
     throw new AppError(
-      `A spending plan for ${month}/${year} already exists`,
+      `A spending plan for ${MONTH_NAMES[month - 1]} ${year} already exists`,
       409
     );
   }
