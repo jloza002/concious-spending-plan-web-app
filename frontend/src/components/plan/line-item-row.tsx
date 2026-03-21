@@ -63,8 +63,8 @@ export function LineItemRow({
         />
       </div>
 
-      {/* Delete button (custom items only) */}
-      {!item.isDefault && onDelete && (
+      {/* Delete button */}
+      {onDelete && (
         <button
           onClick={() => onDelete(item.id)}
           className={`shrink-0 w-6 h-6 flex items-center justify-center rounded text-gray-400

@@ -7,10 +7,8 @@ async function getAuthHeaders(): Promise<HeadersInit> {
   const headers: HeadersInit = {
     "Content-Type": "application/json",
   };
-  if (session?.user) {
-    // In production, this would use a proper JWT token
-    // For now, we pass the session info through a custom header
-    headers["Authorization"] = `Bearer ${(session as any).accessToken || ""}`;
+  if ((session as any)?.accessToken) {
+    headers["Authorization"] = `Bearer ${(session as any).accessToken}`;
   }
   return headers;
 }

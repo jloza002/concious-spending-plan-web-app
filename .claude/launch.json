@@ -3,14 +3,14 @@
   "configurations": [
     {
       "name": "Frontend (Next.js)",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@csp/frontend", "dev"],
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "pnpm", "--filter", "@csp/frontend", "dev"],
       "port": 3000
     },
     {
       "name": "Backend (Express API)",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@csp/backend", "dev"],
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "pnpm", "--filter", "@csp/backend", "dev"],
       "port": 4000
     }
   ]

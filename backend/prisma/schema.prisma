@@ -18,6 +18,13 @@ model User {
   emailVerified DateTime? @map("email_verified")
   image         String?
   passwordHash  String?   @map("password_hash")
+
+  // Profile fields
+  phone         String?   @db.VarChar(50)
+  bio           String?   @db.Text
+  avatarUrl     String?   @map("avatar_url") @db.Text
+  timezone      String?   @default("America/New_York") @db.VarChar(100)
+
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 

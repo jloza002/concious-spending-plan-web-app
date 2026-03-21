@@ -1,16 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,18 +23,51 @@ export default function RegisterPage() {
         body: JSON.stringify({ name, email, password }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        const data = await res.json();
         setError(data.message || "Registration failed");
         setIsLoading(false);
         return;
       }
 
-      router.push("/login");
+      setSuccess(true);
     } catch {
-      setError("An unexpected error occurred");
+      setError("An unexpected error occurred. Please try again.");
       setIsLoading(false);
     }
+  }
+
+  if (success) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--color-cream)]">
+        <div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-lg text-center">
+          <div className="mb-6">
+            <div className="w-16 h-16 bg-[var(--color-dark-teal)] rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h1 className="font-display text-2xl font-bold text-[var(--color-dark-teal)]">
+              Check your email
+            </h1>
+            <p className="mt-3 text-sm text-gray-600 font-sans">
+              We sent a verification link to <strong>{email}</strong>.
+              Click the link to activate your account.
+            </p>
+            <p className="mt-2 text-xs text-gray-400 font-sans">
+              The link expires in 24 hours. Check your spam folder if you don&apos;t see it.
+            </p>
+          </div>
+          <p className="text-sm text-gray-500 font-sans">
+            Already verified?{" "}
+            <a href="/login" className="text-[var(--color-orange)] hover:underline font-medium">
+              Sign in
+            </a>
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (

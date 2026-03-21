@@ -20,12 +20,12 @@ transactionRoutes.put("/:id", async (req, res, next) => {
     );
 
     // Also save to category memory if a category was assigned
-    if (data.spendingCategory && data.spendingSubcategory) {
+    if (data.spendingCategory) {
       await categoryMappingService.saveMappingFromDescription(
         req.user!.sub,
         (transaction as any).description,
         data.spendingCategory,
-        data.spendingSubcategory
+        data.spendingSubcategory ?? ""
       );
     }
 

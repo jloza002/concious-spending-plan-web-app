@@ -111,8 +111,36 @@ export async function assignCategory(
   });
 }
 
+/** Levenshtein distance between two strings */
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
+    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+  );
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] =
+        a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+/** Similarity score 0–1 between two normalized strings */
+function similarity(a: string, b: string): number {
+  if (a === b) return 1;
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) return 1;
+  return 1 - levenshtein(a, b) / maxLen;
+}
+
+const FUZZY_THRESHOLD = 0.75;
+
 /**
  * Auto-categorize transactions using the user's category memory.
+ * Uses fuzzy matching: exact → substring containment → similarity score.
  * Returns a map of description -> suggested category.
  */
 export async function autoCategorize(
@@ -121,29 +149,50 @@ export async function autoCategorize(
 ): Promise<
   Map<string, { spendingCategory: string; spendingSubcategory: string; timesUsed: number }>
 > {
-  const normalized = descriptions.map((d) => normalizeDescription(d));
-  const uniqueNormalized = [...new Set(normalized)];
-
-  const mappings = await prisma.categoryMapping.findMany({
-    where: {
-      userId,
-      descriptionNormalized: { in: uniqueNormalized },
-    },
-  });
+  const mappings = await prisma.categoryMapping.findMany({ where: { userId } });
 
   const result = new Map<
     string,
     { spendingCategory: string; spendingSubcategory: string; timesUsed: number }
   >();
 
-  for (let i = 0; i < descriptions.length; i++) {
-    const norm = normalized[i];
-    const mapping = mappings.find((m: (typeof mappings)[number]) => m.descriptionNormalized === norm);
-    if (mapping) {
-      result.set(descriptions[i], {
-        spendingCategory: mapping.spendingCategory,
-        spendingSubcategory: mapping.spendingSubcategory,
-        timesUsed: mapping.timesUsed,
+  for (const description of descriptions) {
+    const norm = normalizeDescription(description);
+    let bestMatch: (typeof mappings)[number] | null = null;
+    let bestScore = 0;
+
+    for (const mapping of mappings) {
+      const keyword = mapping.descriptionNormalized;
+
+      // 1. Exact match
+      if (norm === keyword) {
+        bestMatch = mapping;
+        bestScore = 1;
+        break;
+      }
+
+      // 2. Substring containment (keyword appears in description or vice versa)
+      let score = 0;
+      if (keyword.length >= 3 && norm.includes(keyword)) {
+        score = 0.9;
+      } else if (keyword.length >= 3 && keyword.includes(norm)) {
+        score = 0.85;
+      } else {
+        // 3. Fuzzy similarity
+        score = similarity(norm, keyword);
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = mapping;
+      }
+    }
+
+    if (bestMatch && bestScore >= FUZZY_THRESHOLD) {
+      result.set(description, {
+        spendingCategory: bestMatch.spendingCategory,
+        spendingSubcategory: bestMatch.spendingSubcategory,
+        timesUsed: bestMatch.timesUsed,
       });
     }
   }

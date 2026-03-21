@@ -4,7 +4,7 @@ import { z } from "zod";
 export const categoryMappingSchema = z.object({
   descriptionNormalized: z.string().min(1),
   spendingCategory: z.enum(["fixed_costs", "investments", "savings", "guilt_free"]),
-  spendingSubcategory: z.string().min(1),
+  spendingSubcategory: z.string(),
 });
 
 export type CategoryMappingInput = z.infer<typeof categoryMappingSchema>;
