@@ -5,6 +5,11 @@ import { usePlan } from "@/hooks/use-spending-plan";
 import { Button } from "@/components/ui/button";
 import { MISCELLANEOUS_RATE } from "@csp/shared";
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 export default function PreviewPage({
   params,
 }: {
