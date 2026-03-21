@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────
+// Auth (NextAuth compatible)
+// ──────────────────────────────────────────
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String?   @db.VarChar(255)
+  email         String    @unique @db.VarChar(255)
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  passwordHash  String?   @map("password_hash")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  accounts         Account[]
+  sessions         Session[]
+  spendingPlans    SpendingPlan[]
+  categoryMappings CategoryMapping[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(uuid()) @db.Uuid
+  userId            String  @map("user_id") @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refreshToken      String? @map("refresh_token") @db.Text
+  accessToken       String? @map("access_token") @db.Text
+  expiresAt         Int?    @map("expires_at")
+  tokenType         String? @map("token_type")
+  scope             String?
+  idToken           String? @map("id_token") @db.Text
+  sessionState      String? @map("session_state")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id") @db.Uuid
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ──────────────────────────────────────────
+// Spending Plan
+// ──────────────────────────────────────────
+
+model SpendingPlan {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  month  Int
+  year   Int
+
+  // Net Worth
+  assets        Decimal @default(0) @db.Decimal(12, 2)
+  investmentsNw Decimal @default(0) @map("investments_nw") @db.Decimal(12, 2)
+  savingsNw     Decimal @default(0) @map("savings_nw") @db.Decimal(12, 2)
+  debt          Decimal @default(0) @db.Decimal(12, 2)
+
+  // Income
+  grossMonthlyIncome Decimal @default(0) @map("gross_monthly_income") @db.Decimal(12, 2)
+  netMonthlyIncome   Decimal @default(0) @map("net_monthly_income") @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lineItems          PlanLineItem[]
+  transactionImports TransactionImport[]
+
+  @@unique([userId, month, year])
+  @@index([userId, year, month])
+  @@map("spending_plans")
+}
+
+model PlanLineItem {
+  id             String @id @default(uuid()) @db.Uuid
+  spendingPlanId String @map("spending_plan_id") @db.Uuid
+  section        String @db.VarChar(50) // 'fixed_costs', 'investments', 'savings'
+  label          String @db.VarChar(255)
+  amount         Decimal @default(0) @db.Decimal(12, 2)
+  isDefault      Boolean @default(false) @map("is_default")
+  sortOrder      Int     @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  spendingPlan SpendingPlan @relation(fields: [spendingPlanId], references: [id], onDelete: Cascade)
+
+  @@index([spendingPlanId, section])
+  @@map("plan_line_items")
+}
+
+// ──────────────────────────────────────────
+// CSV Import & Transactions
+// ──────────────────────────────────────────
+
+model TransactionImport {
+  id             String   @id @default(uuid()) @db.Uuid
+  spendingPlanId String   @map("spending_plan_id") @db.Uuid
+  importedAt     DateTime @default(now()) @map("imported_at")
+
+  spendingPlan SpendingPlan  @relation(fields: [spendingPlanId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@map("transaction_imports")
+}
+
+model Transaction {
+  id              String  @id @default(uuid()) @db.Uuid
+  importId        String  @map("import_id") @db.Uuid
+  transactionDate DateTime @map("transaction_date") @db.Date
+  postDate        DateTime @map("post_date") @db.Date
+  description     String  @db.VarChar(500)
+  originalCategory String? @map("original_category") @db.VarChar(100)
+  type            String  @db.VarChar(20) // 'Sale', 'Return', 'Payment', 'Adjustment'
+  amount          Decimal @db.Decimal(12, 2)
+  memo            String? @db.Text
+
+  // User-assigned category
+  spendingCategory    String? @map("spending_category") @db.VarChar(50)
+  spendingSubcategory String? @map("spending_subcategory") @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  import TransactionImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@index([importId])
+  @@map("transactions")
+}
+
+// ──────────────────────────────────────────
+// Category Memory
+// ──────────────────────────────────────────
+
+model CategoryMapping {
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @map("user_id") @db.Uuid
+  descriptionNormalized String   @map("description_normalized") @db.VarChar(500)
+  spendingCategory      String   @map("spending_category") @db.VarChar(50)
+  spendingSubcategory   String   @map("spending_subcategory") @db.VarChar(255)
+  timesUsed             Int      @default(1) @map("times_used")
+  lastUsedAt            DateTime @default(now()) @map("last_used_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, descriptionNormalized])
+  @@map("category_mappings")
+}

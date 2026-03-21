@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "pnpm --filter @csp/shared build && pnpm --filter @csp/frontend build",
+  "installCommand": "pnpm install"
+}

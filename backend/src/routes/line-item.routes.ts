@@ -1,0 +1,131 @@
+import { Router } from "express";
+import { requireAuth } from "../middleware/auth.js";
+import { lineItemSchema, updateLineItemSchema, reorderItemsSchema } from "@csp/shared";
+import { prisma } from "../db/client.js";
+import { AppError } from "../middleware/error-handler.js";
+import * as planService from "../services/plan.service.js";
+
+export const lineItemRoutes = Router();
+
+lineItemRoutes.use(requireAuth);
+
+/** POST /plans/:id/items - Add a new subcategory line item */
+lineItemRoutes.post("/:id/items", async (req, res, next) => {
+  try {
+    const planId = req.params.id;
+    const userId = req.user!.sub;
+    const data = lineItemSchema.parse(req.body);
+
+    // Verify ownership
+    const plan = await prisma.spendingPlan.findFirst({
+      where: { id: planId, userId },
+    });
+    if (!plan) throw new AppError("Spending plan not found", 404);
+
+    // Determine sort order if not provided
+    let sortOrder = data.sortOrder;
+    if (sortOrder === undefined) {
+      const maxItem = await prisma.planLineItem.findFirst({
+        where: { spendingPlanId: planId, section: data.section },
+        orderBy: { sortOrder: "desc" },
+      });
+      sortOrder = (maxItem?.sortOrder ?? 0) + 1;
+    }
+
+    await prisma.planLineItem.create({
+      data: {
+        spendingPlanId: planId,
+        section: data.section,
+        label: data.label,
+        amount: data.amount,
+        isDefault: false,
+        sortOrder,
+      },
+    });
+
+    // Return updated plan
+    const updatedPlan = await planService.getPlan(planId, userId);
+    res.status(201).json(updatedPlan);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** PUT /plans/:id/items/:itemId - Update a line item */
+lineItemRoutes.put("/:id/items/:itemId", async (req, res, next) => {
+  try {
+    const { id: planId, itemId } = req.params;
+    const userId = req.user!.sub;
+    const data = updateLineItemSchema.parse(req.body);
+
+    // Verify ownership
+    const item = await prisma.planLineItem.findUnique({
+      where: { id: itemId },
+      include: { spendingPlan: true },
+    });
+    if (!item || item.spendingPlan.userId !== userId) {
+      throw new AppError("Line item not found", 404);
+    }
+
+    await prisma.planLineItem.update({
+      where: { id: itemId },
+      data,
+    });
+
+    const updatedPlan = await planService.getPlan(planId, userId);
+    res.json(updatedPlan);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** DELETE /plans/:id/items/:itemId - Remove a custom line item */
+lineItemRoutes.delete("/:id/items/:itemId", async (req, res, next) => {
+  try {
+    const { id: planId, itemId } = req.params;
+    const userId = req.user!.sub;
+
+    const item = await prisma.planLineItem.findUnique({
+      where: { id: itemId },
+      include: { spendingPlan: true },
+    });
+    if (!item || item.spendingPlan.userId !== userId) {
+      throw new AppError("Line item not found", 404);
+    }
+
+    await prisma.planLineItem.delete({ where: { id: itemId } });
+
+    const updatedPlan = await planService.getPlan(planId, userId);
+    res.json(updatedPlan);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** PATCH /plans/:id/items/reorder - Reorder line items */
+lineItemRoutes.patch("/:id/items/reorder", async (req, res, next) => {
+  try {
+    const { id: planId } = req.params;
+    const userId = req.user!.sub;
+    const { items } = reorderItemsSchema.parse(req.body);
+
+    const plan = await prisma.spendingPlan.findFirst({
+      where: { id: planId, userId },
+    });
+    if (!plan) throw new AppError("Spending plan not found", 404);
+
+    await prisma.$transaction(
+      items.map((item) =>
+        prisma.planLineItem.update({
+          where: { id: item.id },
+          data: { sortOrder: item.sortOrder },
+        })
+      )
+    );
+
+    const updatedPlan = await planService.getPlan(planId, userId);
+    res.json(updatedPlan);
+  } catch (err) {
+    next(err);
+  }
+});

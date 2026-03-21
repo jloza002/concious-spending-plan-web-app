@@ -1,0 +1,32 @@
+{
+  "name": "iwt-conscious-spending-plan",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IWT Conscious Spending Plan Web App",
+  "scripts": {
+    "dev": "pnpm --parallel -r run dev",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "type-check": "pnpm -r run type-check",
+    "db:migrate": "pnpm --filter backend run db:migrate",
+    "db:generate": "pnpm --filter backend run db:generate",
+    "db:seed": "pnpm --filter backend run db:seed"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "bcrypt",
+      "esbuild",
+      "prisma",
+      "@prisma/client",
+      "@prisma/engines",
+      "sharp",
+      "unrs-resolver"
+    ]
+  }
+}
