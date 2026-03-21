@@ -9,7 +9,6 @@ import {
   DEFAULT_INVESTMENTS,
 } from "@csp/shared";
 import type { CategoryMapping } from "@csp/shared";
-import Link from "next/link";
 
 /** Flat list of category options — no groups, no savings, no assets */
 const CATEGORY_OPTIONS: { value: string; label: string }[] = [
@@ -83,13 +82,7 @@ export default function MappingsPage() {
   return (
     <div>
       <div className="mb-8">
-        <Link
-          href="/dashboard"
-          className="text-sm text-gray-500 hover:text-gray-700 font-sans"
-        >
-          &larr; Back to Dashboard
-        </Link>
-        <h1 className="font-display text-2xl font-bold text-[var(--color-dark-teal)] mt-1">
+        <h1 className="font-display text-2xl font-bold text-[var(--color-dark-teal)]">
           Category Rules
         </h1>
         <p className="text-sm text-gray-500 font-sans mt-1">

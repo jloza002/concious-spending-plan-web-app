@@ -9,13 +9,7 @@ import { FixedCostsSection } from "@/components/plan/fixed-costs-section";
 import { InvestmentsSection } from "@/components/plan/investments-section";
 import { SavingsSection } from "@/components/plan/savings-section";
 import { GuiltFreeSection } from "@/components/plan/guilt-free-section";
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
-
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
 export default function PlanPage({
   params,
@@ -71,33 +65,12 @@ export default function PlanPage({
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <Link
-            href="/dashboard"
-            className="text-sm text-gray-500 hover:text-gray-700 font-sans"
-          >
-            &larr; Back to Dashboard
-          </Link>
-          <h1 className="font-display text-2xl font-bold text-[var(--color-dark-teal)] mt-1">
-            {MONTH_NAMES[plan.month - 1]} {plan.year}
-          </h1>
+      {/* Auto-save indicator */}
+      {isSaving && (
+        <div className="text-right mb-2">
+          <span className="text-xs text-gray-400 font-sans">Saving...</span>
         </div>
-        <div className="flex items-center gap-3">
-          {isSaving && (
-            <span className="text-xs text-gray-400 font-sans">Saving...</span>
-          )}
-          <Link href={`/plan/${planId}/import`}>
-            <Button variant="secondary" size="sm">
-              Import CSV
-            </Button>
-          </Link>
-          <Link href={`/plan/${planId}/preview`}>
-            <Button size="sm">Preview & Export</Button>
-          </Link>
-        </div>
-      </div>
+      )}
 
       {/* Spending Plan Form */}
       <div className="max-w-2xl mx-auto space-y-6">

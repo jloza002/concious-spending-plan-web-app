@@ -4,12 +4,6 @@ import { use } from "react";
 import { usePlan } from "@/hooks/use-spending-plan";
 import { Button } from "@/components/ui/button";
 import { MISCELLANEOUS_RATE } from "@csp/shared";
-import Link from "next/link";
-
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
 export default function PreviewPage({
   params,
@@ -52,24 +46,11 @@ export default function PreviewPage({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 no-print">
-        <div>
-          <Link
-            href={`/plan/${planId}`}
-            className="text-sm text-gray-500 hover:text-gray-700 font-sans"
-          >
-            &larr; Back to Plan
-          </Link>
-          <h1 className="font-display text-2xl font-bold text-[var(--color-dark-teal)] mt-1">
-            Preview & Export
-          </h1>
-        </div>
-        <div className="flex gap-3">
-          <Button variant="ghost" onClick={() => window.print()}>
-            Print
-          </Button>
-          <Button onClick={handleDownload}>Download Excel</Button>
-        </div>
+      <div className="flex justify-end gap-3 mb-6 no-print">
+        <Button variant="ghost" onClick={() => window.print()}>
+          Print
+        </Button>
+        <Button onClick={handleDownload}>Download Excel</Button>
       </div>
 
       {/* Percentage Breakdown Bar */}
