@@ -47,7 +47,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 CSP
               </Link>
               <NavLink href="/dashboard">Dashboard</NavLink>
-              <NavLink href="/settings/mappings">Category Rules</NavLink>
             </div>
 
             {/* Right: User + Sign Out */}

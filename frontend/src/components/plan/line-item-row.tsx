@@ -9,6 +9,7 @@ interface LineItemRowProps {
   onAmountChange: (id: string, amount: number) => void;
   onLabelChange?: (id: string, label: string) => void;
   onDelete?: (id: string) => void;
+  readOnly?: boolean;
 }
 
 /**
@@ -20,6 +21,7 @@ export function LineItemRow({
   onAmountChange,
   onLabelChange,
   onDelete,
+  readOnly = false,
 }: LineItemRowProps) {
   const [label, setLabel] = useState(item.label);
   const [isHovered, setIsHovered] = useState(false);
@@ -38,7 +40,7 @@ export function LineItemRow({
     >
       {/* Label */}
       <div className="flex-1 min-w-0">
-        {item.isDefault ? (
+        {item.isDefault || readOnly ? (
           <span className="text-sm font-sans text-gray-800 truncate block">
             {item.label}
           </span>
@@ -60,11 +62,12 @@ export function LineItemRow({
         <CurrencyInput
           value={item.amount}
           onChange={(amount) => onAmountChange(item.id, amount)}
+          readOnly={readOnly}
         />
       </div>
 
       {/* Delete button */}
-      {onDelete && (
+      {!readOnly && onDelete && (
         <button
           onClick={() => onDelete(item.id)}
           className={`shrink-0 w-6 h-6 flex items-center justify-center rounded text-gray-400
