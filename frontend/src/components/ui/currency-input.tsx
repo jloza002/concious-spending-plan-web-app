@@ -33,7 +33,8 @@ export function CurrencyInput({
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
-      minimumFractionDigits: 2,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(num);
   };
 
@@ -56,10 +57,17 @@ export function CurrencyInput({
     []
   );
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") inputRef.current?.blur();
+    },
+    []
+  );
+
   if (readOnly) {
     return (
       <span
-        className={`text-right font-sans tabular-nums ${className}`}
+        className={`block w-full text-right font-sans tabular-nums ${className}`}
       >
         {formatCurrency(value)}
       </span>
@@ -69,12 +77,13 @@ export function CurrencyInput({
   return (
     <input
       ref={inputRef}
-      type={isFocused ? "number" : "text"}
+      type="text"
+      inputMode="decimal"
       value={isFocused ? displayValue : formatCurrency(value)}
       onFocus={handleFocus}
       onBlur={handleBlur}
       onChange={handleChange}
-      step="0.01"
+      onKeyDown={handleKeyDown}
       className={`w-full text-right bg-transparent border border-gray-200 rounded px-2 py-1
         focus:outline-none focus:border-[var(--color-orange)] focus:ring-1 focus:ring-[var(--color-orange)]
         font-sans tabular-nums ${className}`}

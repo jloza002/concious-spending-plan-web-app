@@ -1,9 +1,9 @@
 "use client";
 
-import { use, useState, useCallback, useRef } from "react";
+import { use, useState, useCallback, useRef, useEffect } from "react";
 import Papa from "papaparse";
 import { usePlan } from "@/hooks/use-spending-plan";
-import { useAddLineItem } from "@/hooks/use-line-items";
+import { useAddLineItem, useDeleteLineItem } from "@/hooks/use-line-items";
 import {
   useTransactions,
   useImportTransactions,
@@ -17,25 +17,31 @@ import type { CsvTransaction, Transaction, SpendingPlan } from "@csp/shared";
 
 interface CategorySelectProps {
   transaction: Transaction;
-  categories: { value: string; label: string }[];
+  categories: { value: string; label: string; itemId: string }[];
   onSelect: (transaction: Transaction, value: string) => void;
   onAdd: (transaction: Transaction, label: string) => Promise<void>;
+  onDelete: (itemId: string) => Promise<void>;
 }
 
-function CategorySelect({ transaction, categories, onSelect, onAdd }: CategorySelectProps) {
+function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete }: CategorySelectProps) {
+  const [open, setOpen] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    if (e.target.value === "__add__") {
-      setIsAdding(true);
-      setTimeout(() => inputRef.current?.focus(), 0);
-      return;
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
     }
-    onSelect(transaction, e.target.value);
-  }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -48,6 +54,14 @@ function CategorySelect({ transaction, categories, onSelect, onAdd }: CategorySe
     setSaving(false);
   }
 
+  async function handleDelete(itemId: string) {
+    setDeletingId(itemId);
+    await onDelete(itemId);
+    setDeletingId(null);
+  }
+
+  const currentLabel = transaction.spendingSubcategory || transaction.spendingCategory || "";
+
   if (isAdding) {
     return (
       <form onSubmit={handleAdd} className="flex items-center gap-1">
@@ -57,6 +71,7 @@ function CategorySelect({ transaction, categories, onSelect, onAdd }: CategorySe
           onChange={(e) => setNewLabel(e.target.value)}
           placeholder="Category name…"
           className="flex-1 min-w-0 text-xs border border-[var(--color-orange)] rounded px-2 py-1 font-sans focus:outline-none"
+          autoFocus
         />
         <button
           type="submit"
@@ -76,24 +91,65 @@ function CategorySelect({ transaction, categories, onSelect, onAdd }: CategorySe
     );
   }
 
-  const currentValue = transaction.spendingCategory
-    ? `${transaction.spendingCategory}:${transaction.spendingSubcategory || ""}`
-    : "";
-
   return (
-    <select
-      value={currentValue}
-      onChange={handleChange}
-      className="w-full text-xs border border-gray-200 rounded px-2 py-1 font-sans focus:outline-none focus:border-[var(--color-orange)]"
-    >
-      <option value="">Uncategorized</option>
-      {categories.map((opt) => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-      <option value="__add__">＋ Add category</option>
-    </select>
+    <div ref={dropdownRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full text-xs text-left border border-gray-200 rounded px-2 py-1 font-sans focus:outline-none focus:border-[var(--color-orange)] flex items-center justify-between gap-1"
+      >
+        <span className={currentLabel ? "" : "text-gray-400"}>
+          {currentLabel || "Uncategorized"}
+        </span>
+        <span className="text-gray-400 text-[10px]">▾</span>
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-0.5 w-full min-w-[160px] bg-white border border-gray-200 rounded shadow-lg py-0.5">
+          {/* Uncategorized */}
+          <button
+            type="button"
+            onClick={() => { onSelect(transaction, ""); setOpen(false); }}
+            className="w-full text-left text-xs px-2 py-1.5 hover:bg-gray-50 font-sans text-gray-400"
+          >
+            Uncategorized
+          </button>
+
+          {/* Category items with ✕ */}
+          {categories.map((opt) => (
+            <div key={opt.value} className="flex items-center group hover:bg-gray-50">
+              <button
+                type="button"
+                onClick={() => { onSelect(transaction, opt.value); setOpen(false); }}
+                className="flex-1 text-left text-xs px-2 py-1.5 font-sans truncate"
+              >
+                {opt.label}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleDelete(opt.itemId); }}
+                disabled={deletingId === opt.itemId}
+                className="shrink-0 px-2 py-1.5 text-[10px] text-gray-300 hover:text-red-400 disabled:opacity-40 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Delete category"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+
+          {/* Divider + Add */}
+          <div className="border-t border-gray-100 mt-0.5 pt-0.5">
+            <button
+              type="button"
+              onClick={() => { setOpen(false); setIsAdding(true); }}
+              className="w-full text-left text-xs px-2 py-1.5 hover:bg-gray-50 font-sans text-[var(--color-orange)]"
+            >
+              ＋ Add category
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -111,6 +167,7 @@ export default function ImportPage({
   const assignCategory = useAssignCategory();
   const autoCategorize = useAutoCategorize(planId);
   const addLineItem = useAddLineItem(planId);
+  const deleteLineItem = useDeleteLineItem(planId);
   const [parsedRows, setParsedRows] = useState<CsvTransaction[]>([]);
   const [parseError, setParseError] = useState("");
 
@@ -160,10 +217,10 @@ export default function ImportPage({
   }
 
   // Flat list — fixed costs only
-  const categoryOptions: { value: string; label: string }[] = plan
+  const categoryOptions: { value: string; label: string; itemId: string }[] = plan
     ? plan.lineItems
         .filter((i) => i.section === "fixed_costs")
-        .map((i) => ({ value: `fixed_costs:${i.label}`, label: i.label }))
+        .map((i) => ({ value: `fixed_costs:${i.label}`, label: i.label, itemId: i.id }))
     : [];
 
   function handleCategorySelect(transaction: Transaction, value: string) {
@@ -173,6 +230,10 @@ export default function ImportPage({
       spendingCategory: category || null,
       spendingSubcategory: subcategory || null,
     });
+  }
+
+  async function handleDeleteCategory(itemId: string) {
+    await deleteLineItem.mutateAsync(itemId);
   }
 
   async function handleAddCategory(transaction: Transaction, label: string) {
@@ -313,6 +374,7 @@ export default function ImportPage({
                         categories={categoryOptions}
                         onSelect={handleCategorySelect}
                         onAdd={handleAddCategory}
+                        onDelete={handleDeleteCategory}
                       />
                     </td>
                   </tr>

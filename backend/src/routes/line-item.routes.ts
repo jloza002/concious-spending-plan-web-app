@@ -93,6 +93,16 @@ lineItemRoutes.delete("/:id/items/:itemId", async (req, res, next) => {
       throw new AppError("Line item not found", 404);
     }
 
+    // Clear transaction references to this deleted category
+    await prisma.transaction.updateMany({
+      where: {
+        import: { spendingPlanId: planId },
+        spendingCategory: item.section,
+        spendingSubcategory: item.label,
+      },
+      data: { spendingCategory: null, spendingSubcategory: null },
+    });
+
     await prisma.planLineItem.delete({ where: { id: itemId } });
 
     const updatedPlan = await planService.getPlan(planId, userId);

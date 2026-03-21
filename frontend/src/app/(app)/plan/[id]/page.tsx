@@ -92,10 +92,6 @@ export default function PlanPage({
         <FixedCostsSection
           items={fixedCostItems}
           calculations={plan.calculations}
-          onAmountChange={handleAmountChange}
-          onLabelChange={handleLabelChange}
-          onAddItem={() => handleAddItem("fixed_costs")}
-          onDeleteItem={handleDeleteItem}
         />
 
         <InvestmentsSection

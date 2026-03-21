@@ -2,7 +2,6 @@
 
 import { SectionHeader } from "./section-header";
 import { LineItemRow } from "./line-item-row";
-import { AddItemButton } from "./add-item-button";
 import { TotalRow } from "./total-row";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { MISCELLANEOUS_RATE, SECTION_RANGES, PLAN_SECTIONS } from "@csp/shared";
@@ -11,20 +10,9 @@ import type { PlanLineItem, PlanCalculations } from "@csp/shared";
 interface FixedCostsSectionProps {
   items: PlanLineItem[];
   calculations: PlanCalculations;
-  onAmountChange: (id: string, amount: number) => void;
-  onLabelChange: (id: string, label: string) => void;
-  onAddItem: () => void;
-  onDeleteItem: (id: string) => void;
 }
 
-export function FixedCostsSection({
-  items,
-  calculations,
-  onAmountChange,
-  onLabelChange,
-  onAddItem,
-  onDeleteItem,
-}: FixedCostsSectionProps) {
+export function FixedCostsSection({ items, calculations }: FixedCostsSectionProps) {
   const range = SECTION_RANGES[PLAN_SECTIONS.FIXED_COSTS];
 
   return (
@@ -40,13 +28,10 @@ export function FixedCostsSection({
         <LineItemRow
           key={item.id}
           item={item}
-          onAmountChange={onAmountChange}
-          onLabelChange={onLabelChange}
-          onDelete={onDeleteItem}
+          onAmountChange={() => {}}
+          readOnly
         />
       ))}
-
-      <AddItemButton onClick={onAddItem} />
 
       {/* Miscellaneous (auto-calculated) */}
       <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
