@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { PLAN_SECTIONS } from "@csp/shared";
 import type { CsvTransaction, Transaction } from "@csp/shared";
-import Link from "next/link";
 
 export default function ImportPage({
   params,
@@ -122,19 +121,6 @@ export default function ImportPage({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <Link
-            href={`/plan/${planId}`}
-            className="text-sm text-gray-500 hover:text-gray-700 font-sans"
-          >
-            &larr; Back to Plan
-          </Link>
-          <h1 className="font-display text-2xl font-bold text-[var(--color-dark-teal)] mt-1">
-            Import Transactions
-          </h1>
-        </div>
-      </div>
 
       {/* Upload Zone */}
       {(!existingTransactions || existingTransactions.length === 0) && parsedRows.length === 0 && (
