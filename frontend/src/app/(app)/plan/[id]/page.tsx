@@ -94,7 +94,7 @@ export default function PlanPage({
   }
 
   function handleAddItem(section: "fixed_costs" | "investments" | "savings") {
-    addItem.mutate({ section, label: "", amount: 0 });
+    addItem.mutate({ section, label: "New Item", amount: 0 });
   }
 
   function handleDeleteItem(id: string) {
