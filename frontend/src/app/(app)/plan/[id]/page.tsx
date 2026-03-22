@@ -37,7 +37,7 @@ export default function PlanPage({
         t.isDuplicate ||
         t.type === "Payment"
       ) continue;
-      totals[t.spendingSubcategory] = (totals[t.spendingSubcategory] ?? 0) + Math.abs(t.amount);
+      totals[t.spendingSubcategory] = (totals[t.spendingSubcategory] ?? 0) + (-t.amount);
     }
     return totals;
   }, [transactions]);
