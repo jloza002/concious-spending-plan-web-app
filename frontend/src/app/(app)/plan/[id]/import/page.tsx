@@ -212,8 +212,23 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
     return "";
   }
 
+  function normalizeDate(s: string): string {
+    if (!s) return "";
+    // Already ISO YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.split("T")[0];
+    // MM/DD/YYYY or M/D/YYYY
+    const parts = s.split("/");
+    if (parts.length === 3) {
+      const [m, d, y] = parts;
+      const year = y.length === 2 ? `20${y}` : y;
+      return `${year}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    }
+    return s;
+  }
+
   function isValidDate(s: string): boolean {
-    return !!s && !isNaN(new Date(s).getTime());
+    const n = normalizeDate(s);
+    return !!n && !isNaN(new Date(n).getTime());
   }
 
   function parseFile(file: File) {
@@ -226,13 +241,15 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
           const rows = results.data as Record<string, string>[];
           const transactions: CsvTransaction[] = rows
             .map((row) => {
-              const transactionDate = pick(row, "Transaction Date", "Date", "Posting Date", "Trans Date", "TransDate");
-              const postDate = pick(row, "Post Date", "Posting Date", "Date", "Transaction Date");
+              const rawDate = pick(row, "Transaction Date", "Date", "Posting Date", "Trans Date", "TransDate");
+              const rawPostDate = pick(row, "Post Date", "Posting Date", "Date", "Transaction Date");
+              const transactionDate = normalizeDate(rawDate);
+              const postDate = isValidDate(rawPostDate) ? normalizeDate(rawPostDate) : transactionDate;
               const description = pick(row, "Description", "Details", "Merchant", "Payee", "Name");
               if (!isValidDate(transactionDate) || !description) return null;
               return {
                 transactionDate,
-                postDate: isValidDate(postDate) ? postDate : transactionDate,
+                postDate,
                 description,
                 category: pick(row, "Category") || undefined,
                 type: normalizeType(pick(row, "Type", "Transaction Type", "Details")),
