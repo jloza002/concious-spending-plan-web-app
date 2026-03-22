@@ -31,15 +31,25 @@ export async function importTransactions(
     )
   );
 
+  // Filter out any rows with unparseable dates before inserting
+  const validTransactions = transactions.filter((t) => {
+    const d = new Date(t.transactionDate);
+    return !isNaN(d.getTime());
+  });
+  if (validTransactions.length === 0) {
+    throw new AppError("No valid transactions found — all rows had invalid dates", 400);
+  }
+
   const importRecord = await prisma.transactionImport.create({
     data: {
       spendingPlanId: planId,
       transactions: {
-        create: transactions.map((t) => {
+        create: validTransactions.map((t) => {
           const key = `${new Date(t.transactionDate).toISOString().split("T")[0]}|${t.description}|${t.amount}`;
+          const postDate = new Date(t.postDate);
           return {
             transactionDate: new Date(t.transactionDate),
-            postDate: new Date(t.postDate),
+            postDate: isNaN(postDate.getTime()) ? new Date(t.transactionDate) : postDate,
             description: t.description,
             originalCategory: t.category || null,
             type: t.type,

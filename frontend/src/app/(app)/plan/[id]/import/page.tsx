@@ -207,6 +207,15 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
     return "Sale";
   }
 
+  function pick(row: Record<string, string>, ...keys: string[]): string {
+    for (const k of keys) if (row[k]) return row[k];
+    return "";
+  }
+
+  function isValidDate(s: string): boolean {
+    return !!s && !isNaN(new Date(s).getTime());
+  }
+
   function parseFile(file: File) {
     setParseError("");
     Papa.parse(file, {
@@ -214,16 +223,29 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
       skipEmptyLines: true,
       complete: (results) => {
         try {
-          const transactions: CsvTransaction[] = (results.data as Record<string, string>[]).map((row) => ({
-            transactionDate: row["Transaction Date"] ?? "",
-            postDate: row["Post Date"] ?? "",
-            description: row["Description"] ?? "",
-            category: row["Category"] || undefined,
-            type: normalizeType(row["Type"] ?? ""),
-            amount: parseFloat(row["Amount"] ?? "0") || 0,
-            memo: row["Memo"] || undefined,
-          }));
-          setParsedRows(transactions);
+          const rows = results.data as Record<string, string>[];
+          const transactions: CsvTransaction[] = rows
+            .map((row) => {
+              const transactionDate = pick(row, "Transaction Date", "Date", "Posting Date", "Trans Date", "TransDate");
+              const postDate = pick(row, "Post Date", "Posting Date", "Date", "Transaction Date");
+              const description = pick(row, "Description", "Details", "Merchant", "Payee", "Name");
+              if (!isValidDate(transactionDate) || !description) return null;
+              return {
+                transactionDate,
+                postDate: isValidDate(postDate) ? postDate : transactionDate,
+                description,
+                category: pick(row, "Category") || undefined,
+                type: normalizeType(pick(row, "Type", "Transaction Type", "Details")),
+                amount: parseFloat(pick(row, "Amount", "Debit", "Credit") ?? "0") || 0,
+                memo: pick(row, "Memo", "Note", "Notes") || undefined,
+              } as CsvTransaction;
+            })
+            .filter((t): t is CsvTransaction => t !== null);
+          if (transactions.length === 0) {
+            setParseError("No valid transactions found. Check that your CSV has Date and Description columns.");
+          } else {
+            setParsedRows(transactions);
+          }
         } catch {
           setParseError("Failed to parse CSV. Please check the file format.");
         }
