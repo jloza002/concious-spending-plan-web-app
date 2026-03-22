@@ -197,13 +197,15 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
   const [parseError, setParseError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
 
-  function normalizeType(raw: string): "Sale" | "Return" | "Payment" | "Adjustment" {
-    const VALID = ["Sale", "Return", "Payment", "Adjustment"] as const;
+  function normalizeType(raw: string): "Sale" | "Return" | "Payment" | "Adjustment" | "Debit" | "Credit" {
+    const VALID = ["Sale", "Return", "Payment", "Adjustment", "Debit", "Credit"] as const;
     if ((VALID as readonly string[]).includes(raw)) return raw as typeof VALID[number];
     const u = raw.toUpperCase();
     if (u.includes("PMT") || u.includes("PAYMENT")) return "Payment";
     if (u.includes("XFER") || u.includes("TRANSFER") || u.includes("PARTNERFI") || u.includes("ACCT_")) return "Adjustment";
-    if (u.includes("CREDIT") || u.includes("RETURN") || u.includes("REFUND")) return "Return";
+    if (u.includes("DEBIT") || u.includes("QUICKPAY_DEBIT") || u.includes("MISC_DEBIT")) return "Debit";
+    if (u.includes("CREDIT") || u.includes("QUICKPAY_CREDIT")) return "Credit";
+    if (u.includes("RETURN") || u.includes("REFUND")) return "Return";
     return "Sale";
   }
 
@@ -500,7 +502,7 @@ function AddTransactionModal({ onClose, onAdd, isAdding }: AddTransactionModalPr
 
 // ─── Type Select ──────────────────────────────────────────────────────────────
 
-const TRANSACTION_TYPES = ["Sale", "Return", "Payment", "Adjustment"] as const;
+const TRANSACTION_TYPES = ["Sale", "Return", "Payment", "Adjustment", "Debit", "Credit"] as const;
 type TransactionType = (typeof TRANSACTION_TYPES)[number];
 
 const TYPE_STYLES: Record<TransactionType, string> = {
@@ -508,6 +510,8 @@ const TYPE_STYLES: Record<TransactionType, string> = {
   Return: "bg-green-100 text-green-700",
   Payment: "bg-gray-100 text-gray-500",
   Adjustment: "bg-sky-100 text-sky-700",
+  Debit: "bg-orange-100 text-orange-700",
+  Credit: "bg-teal-100 text-teal-700",
 };
 
 interface TypeSelectProps {

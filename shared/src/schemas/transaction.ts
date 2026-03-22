@@ -6,7 +6,7 @@ export const csvTransactionSchema = z.object({
   postDate: z.string(),
   description: z.string(),
   category: z.string().optional(),
-  type: z.enum(["Sale", "Return", "Payment", "Adjustment"]),
+  type: z.enum(["Sale", "Return", "Payment", "Adjustment", "Debit", "Credit"]),
   amount: z.number(),
   memo: z.string().optional(),
 });
@@ -41,14 +41,14 @@ export const categorySuggestionSchema = z.object({
 export const manualTransactionSchema = z.object({
   transactionDate: z.string(),
   description: z.string().min(1),
-  type: z.enum(["Sale", "Return", "Payment", "Adjustment"]).default("Sale"),
+  type: z.enum(["Sale", "Return", "Payment", "Adjustment", "Debit", "Credit"]).default("Sale"),
   amount: z.number(),
   memo: z.string().optional(),
 });
 
 /** Schema for updating a transaction's type */
 export const updateTransactionTypeSchema = z.object({
-  type: z.enum(["Sale", "Return", "Payment", "Adjustment"]),
+  type: z.enum(["Sale", "Return", "Payment", "Adjustment", "Debit", "Credit"]),
 });
 
 export type ManualTransactionInput = z.infer<typeof manualTransactionSchema>;
