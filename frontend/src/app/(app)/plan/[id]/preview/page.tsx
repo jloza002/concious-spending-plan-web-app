@@ -95,7 +95,7 @@ export default function PreviewPage({
       </div>
 
       {/* Percentage Breakdown Bar */}
-      <div className="mb-6 no-print">
+      <div className="mb-8 no-print">
         <div className="flex h-8 rounded-lg overflow-hidden shadow-sm">
           <div
             className="bg-[var(--color-dark-teal)] flex items-center justify-center text-white text-xs font-sans"
@@ -120,6 +120,25 @@ export default function PreviewPage({
             style={{ width: `${Math.max(calcs.guiltFreePercentage * 100, 0)}%` }}
           >
             {calcs.guiltFreePercentage > 0.05 && `Free ${pct(calcs.guiltFreePercentage)}`}
+          </div>
+        </div>
+        {/* Legend */}
+        <div className="flex items-center justify-end gap-5 mt-2 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-[var(--color-dark-teal)] shrink-0" />
+            <span className="text-xs font-sans text-gray-500">Fixed Costs</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-blue-500 shrink-0" />
+            <span className="text-xs font-sans text-gray-500">Investments</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-green-500 shrink-0" />
+            <span className="text-xs font-sans text-gray-500">Savings</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-[var(--color-orange)] shrink-0" />
+            <span className="text-xs font-sans text-gray-500">Guilt-Free Spending</span>
           </div>
         </div>
       </div>
@@ -155,7 +174,7 @@ export default function PreviewPage({
         </SectionBlock>
 
         {/* FIXED COSTS */}
-        <SectionBlock title={`FIXED COSTS (50-60%)`} percentage={calcs.fixedCostsPercentage > 0 ? pct(calcs.fixedCostsPercentage) : undefined}>
+        <SectionBlock title="FIXED COSTS (50-60%)" percentage={pct(calcs.fixedCostsPercentage)}>
           {fcEntries.map(([label, amount]) => (
             <DataRow key={label} label={label} value={fmt(amount)} />
           ))}
@@ -167,7 +186,7 @@ export default function PreviewPage({
         </SectionBlock>
 
         {/* INVESTMENTS */}
-        <SectionBlock title="INVESTMENTS (10%)" percentage={calcs.investmentsPercentage > 0 ? pct(calcs.investmentsPercentage) : undefined}>
+        <SectionBlock title="INVESTMENTS (10%)" percentage={pct(calcs.investmentsPercentage)}>
           {inv.map((item) => (
             <DataRow key={item.id} label={item.label} value={fmt(item.amount)} />
           ))}
@@ -175,7 +194,7 @@ export default function PreviewPage({
         </SectionBlock>
 
         {/* SAVINGS GOALS */}
-        <SectionBlock title="SAVINGS GOALS (5-10%)" percentage={calcs.savingsPercentage > 0 ? pct(calcs.savingsPercentage) : undefined}>
+        <SectionBlock title="SAVINGS GOALS (5-10%)" percentage={pct(calcs.savingsPercentage)}>
           {sav.map((item) => (
             <DataRow key={item.id} label={item.label} value={fmt(item.amount)} />
           ))}
@@ -183,7 +202,7 @@ export default function PreviewPage({
         </SectionBlock>
 
         {/* GUILT-FREE SPENDING */}
-        <SectionBlock title="GUILT-FREE SPENDING (20-35%)" percentage={calcs.guiltFreePercentage !== 0 ? pct(calcs.guiltFreePercentage) : undefined}>
+        <SectionBlock title="GUILT-FREE SPENDING (20-35%)" percentage={pct(calcs.guiltFreePercentage)}>
           <TotalBlock
             label="GUILT-FREE SPENDING TOTAL"
             value={fmt(calcs.guiltFreeTotal)}
@@ -209,7 +228,7 @@ function SectionBlock({
       <div className="flex items-center justify-between bg-[var(--color-dark-teal)] px-6 py-3">
         <span className="font-display text-white font-bold">{title}</span>
         {percentage && (
-          <span className="font-sans text-white font-bold">{percentage}</span>
+          <span className="font-sans text-[var(--color-orange)] font-bold">{percentage}</span>
         )}
       </div>
       {children}
