@@ -197,6 +197,16 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
   const [parseError, setParseError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
 
+  function normalizeType(raw: string): "Sale" | "Return" | "Payment" | "Adjustment" {
+    const VALID = ["Sale", "Return", "Payment", "Adjustment"] as const;
+    if ((VALID as readonly string[]).includes(raw)) return raw as typeof VALID[number];
+    const u = raw.toUpperCase();
+    if (u.includes("PMT") || u.includes("PAYMENT")) return "Payment";
+    if (u.includes("XFER") || u.includes("TRANSFER") || u.includes("PARTNERFI") || u.includes("ACCT_")) return "Adjustment";
+    if (u.includes("CREDIT") || u.includes("RETURN") || u.includes("REFUND")) return "Return";
+    return "Sale";
+  }
+
   function parseFile(file: File) {
     setParseError("");
     Papa.parse(file, {
@@ -209,7 +219,7 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
             postDate: row["Post Date"] ?? "",
             description: row["Description"] ?? "",
             category: row["Category"] || undefined,
-            type: row["Type"] || "Sale",
+            type: normalizeType(row["Type"] ?? ""),
             amount: parseFloat(row["Amount"] ?? "0") || 0,
             memo: row["Memo"] || undefined,
           }));
@@ -570,14 +580,32 @@ export default function TransactionsPage({
   }
 
   async function handleImport(rows: CsvTransaction[]) {
-    await importMutation.mutateAsync(rows);
+    const result = await importMutation.mutateAsync(rows) as { transactions: { id: string; description: string }[] };
+    // Auto-categorize newly imported transactions using existing memory
+    const newTxs = result?.transactions ?? [];
+    if (newTxs.length === 0) return;
+    const descriptions = newTxs.map((t) => t.description);
+    const suggestions = await autoCategorize.mutateAsync(descriptions) as Record<string, { spendingCategory: string; spendingSubcategory: string }>;
+    for (const t of newTxs) {
+      const s = suggestions[t.description];
+      if (s) {
+        assignCategory.mutate({ transactionId: t.id, spendingCategory: s.spendingCategory, spendingSubcategory: s.spendingSubcategory });
+      }
+    }
   }
 
   async function handleAutoCategorize() {
     if (!transactions) return;
-    const descriptions = transactions.filter((t) => !t.spendingCategory).map((t) => t.description);
-    if (descriptions.length === 0) return;
-    await autoCategorize.mutateAsync(descriptions);
+    const uncategorized = transactions.filter((t) => !t.spendingCategory);
+    if (uncategorized.length === 0) return;
+    const descriptions = uncategorized.map((t) => t.description);
+    const suggestions = await autoCategorize.mutateAsync(descriptions) as Record<string, { spendingCategory: string; spendingSubcategory: string }>;
+    for (const t of uncategorized) {
+      const s = suggestions[t.description];
+      if (s) {
+        assignCategory.mutate({ transactionId: t.id, spendingCategory: s.spendingCategory, spendingSubcategory: s.spendingSubcategory });
+      }
+    }
   }
 
   const uncategorizedCount = transactions?.filter((t) => !t.spendingCategory).length ?? 0;
