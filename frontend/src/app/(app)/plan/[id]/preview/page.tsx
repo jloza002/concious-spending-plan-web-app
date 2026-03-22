@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useMemo } from "react";
+import { getSession } from "next-auth/react";
 import { usePlan } from "@/hooks/use-spending-plan";
 import { useTransactions } from "@/hooks/use-transactions";
 import { Button } from "@/components/ui/button";
@@ -56,7 +57,12 @@ export default function PreviewPage({
   }, [plan, fixedCategoryTotals]);
 
   async function handleDownload() {
-    const res = await fetch(`/api/backend/plans/${planId}/export`);
+    const session = await getSession();
+    const headers: HeadersInit = {};
+    if ((session as any)?.accessToken) {
+      headers["Authorization"] = `Bearer ${(session as any).accessToken}`;
+    }
+    const res = await fetch(`/api/backend/plans/${planId}/export`, { headers });
     if (!res.ok) return;
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);

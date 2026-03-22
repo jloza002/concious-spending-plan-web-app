@@ -8,18 +8,20 @@ import {
   EXCEL_COLORS,
   EXCEL_FONTS,
   EXCEL_FILLS,
-  CURRENCY_FORMAT,
+  CURRENCY_FORMAT_NO_DECIMALS,
   PERCENTAGE_FORMAT,
 } from "@csp/shared";
 
-/**
- * Generate an Excel file matching the IWT Conscious Spending Plan template.
- * Handles dynamic row positions based on custom subcategories.
- */
-export async function generateExcel(
-  planId: string,
-  userId: string
-): Promise<ExcelJS.Buffer> {
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+const THIN: ExcelJS.Border = { style: "thin", color: { argb: "FF000000" } };
+const BORDERS_ALL = { top: THIN, bottom: THIN, left: THIN, right: THIN };
+const BORDERS_NO_RIGHT = { top: THIN, bottom: THIN, left: THIN };
+
+export async function generateExcel(planId: string, userId: string): Promise<ExcelJS.Buffer> {
   const plan = await prisma.spendingPlan.findFirst({
     where: { id: planId, userId },
     include: {
@@ -27,276 +29,233 @@ export async function generateExcel(
     },
   });
 
-  if (!plan) {
-    throw new AppError("Spending plan not found", 404);
+  if (!plan) throw new AppError("Spending plan not found", 404);
+
+  // Fixed costs come from transactions, not line items
+  const txns = await prisma.transaction.findMany({
+    where: {
+      import: { spendingPlanId: planId },
+      spendingCategory: "fixed_costs",
+      isDuplicate: false,
+      NOT: { type: "Payment" },
+    },
+    select: { spendingSubcategory: true, amount: true },
+  });
+
+  const fcTotals: Record<string, number> = {};
+  for (const t of txns) {
+    if (!t.spendingSubcategory) continue;
+    fcTotals[t.spendingSubcategory] =
+      (fcTotals[t.spendingSubcategory] ?? 0) + -Number(t.amount);
   }
+  const fcEntries = Object.entries(fcTotals).sort(([a], [b]) => a.localeCompare(b));
 
   type LineItem = (typeof plan.lineItems)[number];
-  const fixedCostItems = plan.lineItems.filter(
-    (i: LineItem) => i.section === "fixed_costs"
-  );
-  const investmentItems = plan.lineItems.filter(
-    (i: LineItem) => i.section === "investments"
-  );
+  const investmentItems = plan.lineItems.filter((i: LineItem) => i.section === "investments");
   const savingsItems = plan.lineItems.filter((i: LineItem) => i.section === "savings");
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "IWT Conscious Spending Plan";
   const sheet = workbook.addWorksheet("Conscious Spending Plan");
 
-  // Set column widths
   sheet.getColumn("A").width = COLUMN_WIDTHS.A;
   sheet.getColumn("B").width = COLUMN_WIDTHS.B;
 
   let row = 1;
 
   // ── TITLE ──
-  const titleRow = sheet.getRow(row);
-  titleRow.height = ROW_HEIGHTS.TITLE;
+  sheet.getRow(row).height = ROW_HEIGHTS.TITLE;
   const titleCell = sheet.getCell(`A${row}`);
   titleCell.value = "Conscious Spending Plan";
-  titleCell.font = EXCEL_FONTS.TITLE as any;
+  titleCell.font = { name: "DM Sans", size: 22, bold: true, color: { argb: `FF${EXCEL_COLORS.DARK_TEAL}` } };
   titleCell.alignment = { horizontal: "right", vertical: "middle" };
   sheet.mergeCells(`A${row}:B${row}`);
   row++;
 
-  // Spacer
+  // Subtitle (month/year)
   sheet.getRow(row).height = ROW_HEIGHTS.SPACER;
+  sheet.getCell(`A${row}`).value = `${MONTH_NAMES[plan.month - 1]} ${plan.year}`;
+  sheet.getCell(`A${row}`).font = { name: "DM Sans", size: 10, color: { argb: "FF888888" } };
+  sheet.getCell(`A${row}`).alignment = { horizontal: "right" };
+  sheet.mergeCells(`A${row}:B${row}`);
   row++;
 
   // ── NET WORTH ──
   row = addSectionHeader(sheet, row, "NET WORTH", "$");
-  const nwStartRow = row;
-  row = addDataRow(sheet, row, "Assets", Number(plan.assets));
-  row = addDataRow(sheet, row, "Investments", Number(plan.investmentsNw));
+  const nwR1 = row;
+  row = addDataRow(sheet, row, "Assets (current value of car, home, property, business)", Number(plan.assets));
+  row = addDataRow(sheet, row, "Investments (include 401K, non-retirement – all investments)", Number(plan.investmentsNw));
   row = addDataRow(sheet, row, "Savings", Number(plan.savingsNw));
-  row = addDataRow(sheet, row, "Debt", Number(plan.debt));
-
-  // Total Net Worth with formula
-  const nwTotalRow = row;
-  addTotalRow(
-    sheet,
-    row,
-    "TOTAL NET WORTH",
-    `=(B${nwStartRow}+B${nwStartRow + 1}+B${nwStartRow + 2})-B${nwStartRow + 3}`
-  );
+  row = addDataRow(sheet, row, "Debt (student loans, credit card debt, mortgage)", Number(plan.debt));
+  addTotalRow(sheet, row, "TOTAL NET WORTH", `=(B${nwR1}+B${nwR1 + 1}+B${nwR1 + 2})-B${nwR1 + 3}`);
   row++;
 
-  // Spacer
-  sheet.getRow(row).height = ROW_HEIGHTS.SPACER;
+  blankRow(sheet, row);
   row++;
 
   // ── INCOME ──
   row = addSectionHeader(sheet, row, "INCOME");
-  row = addDataRow(sheet, row, "Gross monthly income", Number(plan.grossMonthlyIncome));
-  const netIncomeRow = row;
-  const netIncomeDataRow = addDataRow(
-    sheet,
-    row,
-    "Net monthly income (post-tax, after deductions)",
-    Number(plan.netMonthlyIncome)
-  );
-  // Highlight net income row in orange
-  sheet.getCell(`A${row}`).font = {
-    ...EXCEL_FONTS.DATA_LABEL_BOLD,
-    color: { argb: `FF${EXCEL_COLORS.ORANGE}` },
-  } as any;
-  sheet.getCell(`B${row}`).font = {
-    ...EXCEL_FONTS.TOTAL,
-  } as any;
-  row = netIncomeDataRow;
+  row = addDataRow(sheet, row, "Gross monthly income (all income before taxes added up)", Number(plan.grossMonthlyIncome));
 
-  // Spacer
-  sheet.getRow(row).height = ROW_HEIGHTS.SPACER;
+  const netIncomeRow = row;
+  row = addDataRow(sheet, row, "Net monthly income (how much you take home after taxes)", Number(plan.netMonthlyIncome));
+  // Orange highlight on net income row
+  sheet.getCell(`A${netIncomeRow}`).font = {
+    name: "DM Sans", size: 11, bold: true, color: { argb: `FF${EXCEL_COLORS.ORANGE}` },
+  };
+  sheet.getCell(`B${netIncomeRow}`).font = {
+    name: "DM Sans", size: 11, bold: true, color: { argb: `FF${EXCEL_COLORS.ORANGE}` },
+  };
+
+  blankRow(sheet, row);
   row++;
 
   // ── FIXED COSTS ──
   const fcHeaderRow = row;
-  row = addSectionHeader(sheet, row, "FIXED COSTS (50-60%)");
-  // We'll fill in the percentage formula after we know the total row
+  row = addSectionHeader(sheet, row, "FIXED COSTS (50-60% of take home)");
   const fcStartRow = row;
-  for (const item of fixedCostItems) {
-    row = addDataRow(sheet, row, item.label, Number(item.amount));
+  for (const [label, amount] of fcEntries) {
+    row = addDataRow(sheet, row, label, amount);
   }
 
-  // Miscellaneous (auto-calculated 15%)
+  // Miscellaneous auto-calc
   const miscRow = row;
-  const miscLabel = `Miscellaneous (automatically adds ${Math.round(MISCELLANEOUS_RATE * 100)}%)`;
   sheet.getRow(row).height = ROW_HEIGHTS.DATA_ROW;
-  sheet.getCell(`A${row}`).value = miscLabel;
-  sheet.getCell(`A${row}`).font = EXCEL_FONTS.MISCELLANEOUS as any;
-  // Formula: sum of all fixed cost items * 15%
-  const fcItemRefs = fixedCostItems
-    .map((_: LineItem, i: number) => `B${fcStartRow + i}`)
-    .join("+");
-  sheet.getCell(`B${row}`).value = {
-    formula: `=(${fcItemRefs})*${MISCELLANEOUS_RATE}`,
-    result: undefined,
-  } as any;
-  sheet.getCell(`B${row}`).numFmt = CURRENCY_FORMAT;
+  sheet.getCell(`A${miscRow}`).value = `Miscellaneous (automatically adds ${Math.round(MISCELLANEOUS_RATE * 100)}% for things you forgot)`;
+  sheet.getCell(`A${miscRow}`).font = EXCEL_FONTS.MISCELLANEOUS as ExcelJS.Font;
+  sheet.getCell(`A${miscRow}`).alignment = { vertical: "middle", wrapText: true };
+  sheet.getCell(`A${miscRow}`).border = BORDERS_ALL;
+
+  const miscFormula = fcStartRow <= miscRow - 1
+    ? `=SUM(B${fcStartRow}:B${miscRow - 1})*${MISCELLANEOUS_RATE}`
+    : `=0`;
+  sheet.getCell(`B${miscRow}`).value = { formula: miscFormula, result: 0 };
+  sheet.getCell(`B${miscRow}`).numFmt = CURRENCY_FORMAT_NO_DECIMALS;
+  sheet.getCell(`B${miscRow}`).font = EXCEL_FONTS.DATA_LABEL as ExcelJS.Font;
+  sheet.getCell(`B${miscRow}`).alignment = { horizontal: "center", vertical: "middle" };
+  sheet.getCell(`B${miscRow}`).border = BORDERS_ALL;
   row++;
 
-  // Fixed Costs Total
   const fcTotalRow = row;
-  addTotalRow(
-    sheet,
-    row,
-    "FIXED COSTS TOTAL",
-    `=SUM(B${fcStartRow}:B${miscRow})`
-  );
+  addTotalRow(sheet, row, "FIXED COSTS TOTAL", `=SUM(B${fcStartRow}:B${miscRow})`);
   row++;
 
-  // Fill in percentage in header: total / net income
-  sheet.getCell(`B${fcHeaderRow}`).value = {
-    formula: `=IF(B${netIncomeRow}=0," ",B${fcTotalRow}/B${netIncomeRow})`,
-    result: undefined,
-  } as any;
+  sheet.getCell(`B${fcHeaderRow}`).value = { formula: `=IF(B${netIncomeRow}=0," ",B${fcTotalRow}/B${netIncomeRow})`, result: 0 };
   sheet.getCell(`B${fcHeaderRow}`).numFmt = PERCENTAGE_FORMAT;
 
-  // Spacer
-  sheet.getRow(row).height = ROW_HEIGHTS.SPACER;
+  blankRow(sheet, row);
   row++;
 
   // ── INVESTMENTS ──
   const invHeaderRow = row;
-  row = addSectionHeader(sheet, row, "INVESTMENTS (10%)");
+  row = addSectionHeader(sheet, row, "INVESTMENTS (10% of take home)");
   const invStartRow = row;
   for (const item of investmentItems) {
     row = addDataRow(sheet, row, item.label, Number(item.amount));
   }
   const invTotalRow = row;
-  addTotalRow(
-    sheet,
-    row,
-    "INVESTMENTS TOTAL",
-    `=SUM(B${invStartRow}:B${invStartRow + investmentItems.length - 1})`
-  );
+  const invSumRange = investmentItems.length > 0 ? `B${invStartRow}:B${invStartRow + investmentItems.length - 1}` : `B${invStartRow}`;
+  addTotalRow(sheet, row, "INVESTMENTS TOTAL", `=SUM(${invSumRange})`);
   row++;
 
-  sheet.getCell(`B${invHeaderRow}`).value = {
-    formula: `=IF(B${netIncomeRow}=0," ",B${invTotalRow}/B${netIncomeRow})`,
-    result: undefined,
-  } as any;
+  sheet.getCell(`B${invHeaderRow}`).value = { formula: `=IF(B${netIncomeRow}=0," ",B${invTotalRow}/B${netIncomeRow})`, result: 0 };
   sheet.getCell(`B${invHeaderRow}`).numFmt = PERCENTAGE_FORMAT;
 
-  // Spacer
-  sheet.getRow(row).height = ROW_HEIGHTS.SPACER;
+  blankRow(sheet, row);
   row++;
 
   // ── SAVINGS GOALS ──
   const savHeaderRow = row;
-  row = addSectionHeader(sheet, row, "SAVINGS GOALS (5-10%)");
+  row = addSectionHeader(sheet, row, "SAVINGS GOALS (5-10% of take home)");
   const savStartRow = row;
   for (const item of savingsItems) {
     row = addDataRow(sheet, row, item.label, Number(item.amount));
   }
   const savTotalRow = row;
-  addTotalRow(
-    sheet,
-    row,
-    "SAVINGS TOTAL",
-    `=SUM(B${savStartRow}:B${savStartRow + savingsItems.length - 1})`
-  );
+  const savSumRange = savingsItems.length > 0 ? `B${savStartRow}:B${savStartRow + savingsItems.length - 1}` : `B${savStartRow}`;
+  addTotalRow(sheet, row, "SAVINGS TOTAL", `=SUM(${savSumRange})`);
   row++;
 
-  sheet.getCell(`B${savHeaderRow}`).value = {
-    formula: `=IF(B${netIncomeRow}=0," ",B${savTotalRow}/B${netIncomeRow})`,
-    result: undefined,
-  } as any;
+  sheet.getCell(`B${savHeaderRow}`).value = { formula: `=IF(B${netIncomeRow}=0," ",B${savTotalRow}/B${netIncomeRow})`, result: 0 };
   sheet.getCell(`B${savHeaderRow}`).numFmt = PERCENTAGE_FORMAT;
 
-  // Spacer
-  sheet.getRow(row).height = ROW_HEIGHTS.SPACER;
+  blankRow(sheet, row);
   row++;
 
   // ── GUILT-FREE SPENDING ──
   const gfHeaderRow = row;
-  row = addSectionHeader(sheet, row, "GUILT-FREE SPENDING (20-35%)");
+  row = addSectionHeader(sheet, row, "GUILT-FREE SPENDING (20-35% of take home)");
   const gfTotalRow = row;
   addTotalRow(
-    sheet,
-    row,
-    "GUILT-FREE SPENDING TOTAL",
+    sheet, row,
+    "GUILT-FREE SPENDING TOTAL (Dining out, movies, anything you want!)",
     `=B${netIncomeRow}-B${fcTotalRow}-B${invTotalRow}-B${savTotalRow}`
   );
   row++;
 
-  sheet.getCell(`B${gfHeaderRow}`).value = {
-    formula: `=IF(B${netIncomeRow}=0," ",B${gfTotalRow}/B${netIncomeRow})`,
-    result: undefined,
-  } as any;
+  sheet.getCell(`B${gfHeaderRow}`).value = { formula: `=IF(B${netIncomeRow}=0," ",B${gfTotalRow}/B${netIncomeRow})`, result: 0 };
   sheet.getCell(`B${gfHeaderRow}`).numFmt = PERCENTAGE_FORMAT;
 
-  // Generate buffer
   return workbook.xlsx.writeBuffer();
 }
 
-// ──────────────────────────────────────────
-// Helper functions for building rows
-// ──────────────────────────────────────────
+function addSectionHeader(sheet: ExcelJS.Worksheet, row: number, label: string, rightLabel?: string): number {
+  sheet.getRow(row).height = ROW_HEIGHTS.SECTION_HEADER;
 
-function addSectionHeader(
-  sheet: ExcelJS.Worksheet,
-  row: number,
-  label: string,
-  rightLabel?: string
-): number {
-  const r = sheet.getRow(row);
-  r.height = ROW_HEIGHTS.SECTION_HEADER;
   const cellA = sheet.getCell(`A${row}`);
   cellA.value = label;
-  cellA.font = EXCEL_FONTS.SECTION_HEADER as any;
-  cellA.fill = EXCEL_FILLS.SECTION_HEADER as any;
-  cellA.alignment = { vertical: "middle" };
+  cellA.font = EXCEL_FONTS.SECTION_HEADER as ExcelJS.Font;
+  cellA.fill = EXCEL_FILLS.SECTION_HEADER as ExcelJS.Fill;
+  cellA.alignment = { vertical: "middle", wrapText: true };
+  cellA.border = BORDERS_ALL;
 
   const cellB = sheet.getCell(`B${row}`);
-  if (rightLabel) {
-    cellB.value = rightLabel;
-  }
-  cellB.font = EXCEL_FONTS.SECTION_HEADER as any;
-  cellB.fill = EXCEL_FILLS.SECTION_HEADER as any;
+  if (rightLabel) cellB.value = rightLabel;
+  cellB.font = EXCEL_FONTS.SECTION_HEADER as ExcelJS.Font;
+  cellB.fill = EXCEL_FILLS.SECTION_HEADER as ExcelJS.Fill;
   cellB.alignment = { horizontal: "center", vertical: "middle" };
+  cellB.border = BORDERS_ALL;
 
   return row + 1;
 }
 
-function addDataRow(
-  sheet: ExcelJS.Worksheet,
-  row: number,
-  label: string,
-  value: number
-): number {
-  const r = sheet.getRow(row);
-  r.height = ROW_HEIGHTS.DATA_ROW;
-  sheet.getCell(`A${row}`).value = label;
-  sheet.getCell(`A${row}`).font = EXCEL_FONTS.DATA_LABEL as any;
-  sheet.getCell(`A${row}`).alignment = { vertical: "middle", indent: 1 };
-  sheet.getCell(`B${row}`).value = value;
-  sheet.getCell(`B${row}`).numFmt = CURRENCY_FORMAT;
-  sheet.getCell(`B${row}`).font = EXCEL_FONTS.DATA_LABEL as any;
-  sheet.getCell(`B${row}`).alignment = {
-    horizontal: "center",
-    vertical: "middle",
-  };
+function addDataRow(sheet: ExcelJS.Worksheet, row: number, label: string, value: number): number {
+  sheet.getRow(row).height = ROW_HEIGHTS.DATA_ROW;
+
+  const cellA = sheet.getCell(`A${row}`);
+  cellA.value = label;
+  cellA.font = EXCEL_FONTS.DATA_LABEL as ExcelJS.Font;
+  cellA.alignment = { vertical: "middle", wrapText: true, indent: 1 };
+  cellA.border = BORDERS_ALL;
+
+  const cellB = sheet.getCell(`B${row}`);
+  cellB.value = value;
+  cellB.numFmt = CURRENCY_FORMAT_NO_DECIMALS;
+  cellB.font = EXCEL_FONTS.DATA_LABEL as ExcelJS.Font;
+  cellB.fill = EXCEL_FILLS.BEIGE_DIVIDER as ExcelJS.Fill;
+  cellB.alignment = { horizontal: "center", vertical: "middle" };
+  cellB.border = BORDERS_NO_RIGHT;
+
   return row + 1;
 }
 
-function addTotalRow(
-  sheet: ExcelJS.Worksheet,
-  row: number,
-  label: string,
-  formula: string
-): void {
-  const r = sheet.getRow(row);
-  r.height = ROW_HEIGHTS.DATA_ROW;
-  sheet.getCell(`A${row}`).value = label;
-  sheet.getCell(`A${row}`).font = EXCEL_FONTS.TOTAL as any;
-  sheet.getCell(`A${row}`).alignment = { vertical: "middle" };
-  sheet.getCell(`B${row}`).value = { formula, result: undefined } as any;
-  sheet.getCell(`B${row}`).numFmt = CURRENCY_FORMAT;
-  sheet.getCell(`B${row}`).font = EXCEL_FONTS.TOTAL as any;
-  sheet.getCell(`B${row}`).alignment = {
-    horizontal: "center",
-    vertical: "middle",
-  };
+function addTotalRow(sheet: ExcelJS.Worksheet, row: number, label: string, formula: string): void {
+  sheet.getRow(row).height = ROW_HEIGHTS.DATA_ROW;
+
+  const cellA = sheet.getCell(`A${row}`);
+  cellA.value = label;
+  cellA.font = EXCEL_FONTS.TOTAL as ExcelJS.Font;
+  cellA.alignment = { vertical: "middle", wrapText: true };
+  cellA.border = BORDERS_ALL;
+
+  const cellB = sheet.getCell(`B${row}`);
+  cellB.value = { formula, result: 0 };
+  cellB.numFmt = CURRENCY_FORMAT_NO_DECIMALS;
+  cellB.font = EXCEL_FONTS.TOTAL as ExcelJS.Font;
+  cellB.alignment = { horizontal: "center", vertical: "middle" };
+  cellB.border = BORDERS_ALL;
+}
+
+function blankRow(sheet: ExcelJS.Worksheet, row: number): void {
+  sheet.getRow(row).height = ROW_HEIGHTS.SPACER;
 }

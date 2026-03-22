@@ -191,7 +191,7 @@ export async function assignCategory(
 export async function updateTransactionType(
   transactionId: string,
   userId: string,
-  type: "Sale" | "Return" | "Payment" | "Adjustment"
+  type: "Sale" | "Return" | "Payment" | "Adjustment" | "Debit" | "Credit"
 ) {
   const transaction = await prisma.transaction.findUnique({
     where: { id: transactionId },
