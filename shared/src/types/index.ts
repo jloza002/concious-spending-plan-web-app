@@ -49,6 +49,8 @@ export interface Transaction {
   memo: string | null;
   spendingCategory: string | null;
   spendingSubcategory: string | null;
+  isDuplicate: boolean;
+  isManual: boolean;
 }
 
 export interface TransactionImport {

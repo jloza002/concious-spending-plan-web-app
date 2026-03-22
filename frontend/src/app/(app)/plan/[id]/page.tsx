@@ -1,14 +1,16 @@
 "use client";
 
-import { use } from "react";
+import { use, useMemo } from "react";
 import { usePlan, useUpdatePlan } from "@/hooks/use-spending-plan";
 import { useUpdateLineItem, useAddLineItem, useDeleteLineItem } from "@/hooks/use-line-items";
+import { useTransactions } from "@/hooks/use-transactions";
 import { NetWorthSection } from "@/components/plan/net-worth-section";
 import { IncomeSection } from "@/components/plan/income-section";
 import { FixedCostsSection } from "@/components/plan/fixed-costs-section";
 import { InvestmentsSection } from "@/components/plan/investments-section";
 import { SavingsSection } from "@/components/plan/savings-section";
 import { GuiltFreeSection } from "@/components/plan/guilt-free-section";
+import { MISCELLANEOUS_RATE } from "@csp/shared";
 import Link from "next/link";
 
 export default function PlanPage({
@@ -22,6 +24,43 @@ export default function PlanPage({
   const { debouncedUpdate: updateItem } = useUpdateLineItem(planId);
   const addItem = useAddLineItem(planId);
   const deleteItem = useDeleteLineItem(planId);
+  const { data: transactions } = useTransactions(planId);
+
+  // Aggregate transaction amounts by fixed_costs subcategory
+  const fixedCategoryTotals = useMemo<Record<string, number>>(() => {
+    if (!transactions) return {};
+    const totals: Record<string, number> = {};
+    for (const t of transactions) {
+      if (
+        t.spendingCategory !== "fixed_costs" ||
+        !t.spendingSubcategory ||
+        t.isDuplicate ||
+        t.type === "Payment"
+      ) continue;
+      totals[t.spendingSubcategory] = (totals[t.spendingSubcategory] ?? 0) + Math.abs(t.amount);
+    }
+    return totals;
+  }, [transactions]);
+
+  // Override plan calculations with transaction-based fixed costs
+  const calculations = useMemo(() => {
+    if (!plan) return null;
+    const net = plan.netMonthlyIncome;
+    const fixedCostsSubtotal = Object.values(fixedCategoryTotals).reduce((s, v) => s + v, 0);
+    const miscellaneous = fixedCostsSubtotal * MISCELLANEOUS_RATE;
+    const fixedCostsTotal = fixedCostsSubtotal + miscellaneous;
+    const { investmentsTotal, savingsTotal } = plan.calculations;
+    const guiltFreeTotal = net - fixedCostsTotal - investmentsTotal - savingsTotal;
+    return {
+      ...plan.calculations,
+      fixedCostsSubtotal,
+      miscellaneous,
+      fixedCostsTotal,
+      fixedCostsPercentage: net > 0 ? fixedCostsTotal / net : 0,
+      guiltFreeTotal,
+      guiltFreePercentage: net > 0 ? guiltFreeTotal / net : 0,
+    };
+  }, [plan, fixedCategoryTotals]);
 
   if (isLoading) {
     return (
@@ -31,7 +70,7 @@ export default function PlanPage({
     );
   }
 
-  if (error || !plan) {
+  if (error || !plan || !calculations) {
     return (
       <div className="text-center py-12 text-red-500 font-sans">
         Failed to load plan. <Link href="/dashboard" className="underline">Back to dashboard</Link>
@@ -39,7 +78,6 @@ export default function PlanPage({
     );
   }
 
-  const fixedCostItems = plan.lineItems.filter((i) => i.section === "fixed_costs");
   const investmentItems = plan.lineItems.filter((i) => i.section === "investments");
   const savingsItems = plan.lineItems.filter((i) => i.section === "savings");
 
@@ -65,21 +103,19 @@ export default function PlanPage({
 
   return (
     <div>
-      {/* Auto-save indicator */}
       {isSaving && (
         <div className="text-right mb-2">
           <span className="text-xs text-gray-400 font-sans">Saving...</span>
         </div>
       )}
 
-      {/* Spending Plan Form */}
       <div className="max-w-2xl mx-auto space-y-6">
         <NetWorthSection
           assets={plan.assets}
           investmentsNw={plan.investmentsNw}
           savingsNw={plan.savingsNw}
           debt={plan.debt}
-          totalNetWorth={plan.calculations.totalNetWorth}
+          totalNetWorth={calculations.totalNetWorth}
           onFieldChange={handleFieldChange}
         />
 
@@ -90,13 +126,13 @@ export default function PlanPage({
         />
 
         <FixedCostsSection
-          items={fixedCostItems}
-          calculations={plan.calculations}
+          categoryTotals={fixedCategoryTotals}
+          calculations={calculations}
         />
 
         <InvestmentsSection
           items={investmentItems}
-          calculations={plan.calculations}
+          calculations={calculations}
           onAmountChange={handleAmountChange}
           onLabelChange={handleLabelChange}
           onAddItem={() => handleAddItem("investments")}
@@ -105,14 +141,14 @@ export default function PlanPage({
 
         <SavingsSection
           items={savingsItems}
-          calculations={plan.calculations}
+          calculations={calculations}
           onAmountChange={handleAmountChange}
           onLabelChange={handleLabelChange}
           onAddItem={() => handleAddItem("savings")}
           onDeleteItem={handleDeleteItem}
         />
 
-        <GuiltFreeSection calculations={plan.calculations} />
+        <GuiltFreeSection calculations={calculations} />
       </div>
     </div>
   );

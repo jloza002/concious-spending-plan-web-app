@@ -1,12 +1,33 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
-import { assignCategorySchema } from "@csp/shared";
+import { assignCategorySchema, updateTransactionTypeSchema } from "@csp/shared";
 import * as importService from "../services/import.service.js";
 import * as categoryMappingService from "../services/category-mapping.service.js";
 
 export const transactionRoutes = Router();
 
 transactionRoutes.use(requireAuth);
+
+/** PATCH /transactions/:id/type - Update transaction type */
+transactionRoutes.patch("/:id/type", async (req, res, next) => {
+  try {
+    const { type } = updateTransactionTypeSchema.parse(req.body);
+    const transaction = await importService.updateTransactionType(req.params.id, req.user!.sub, type);
+    res.json(transaction);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** DELETE /transactions/:id - Delete a transaction */
+transactionRoutes.delete("/:id", async (req, res, next) => {
+  try {
+    await importService.deleteTransaction(req.params.id, req.user!.sub);
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
 
 /** PUT /transactions/:id - Update transaction category assignment */
 transactionRoutes.put("/:id", async (req, res, next) => {

@@ -37,8 +37,24 @@ export const categorySuggestionSchema = z.object({
   timesUsed: z.number(),
 });
 
+/** Schema for adding a single manual transaction */
+export const manualTransactionSchema = z.object({
+  transactionDate: z.string(),
+  description: z.string().min(1),
+  type: z.enum(["Sale", "Return", "Payment", "Adjustment"]).default("Sale"),
+  amount: z.number(),
+  memo: z.string().optional(),
+});
+
+/** Schema for updating a transaction's type */
+export const updateTransactionTypeSchema = z.object({
+  type: z.enum(["Sale", "Return", "Payment", "Adjustment"]),
+});
+
+export type ManualTransactionInput = z.infer<typeof manualTransactionSchema>;
 export type CsvTransaction = z.infer<typeof csvTransactionSchema>;
 export type ImportTransactionsInput = z.infer<typeof importTransactionsSchema>;
 export type AssignCategoryInput = z.infer<typeof assignCategorySchema>;
 export type AutoCategorizeRequest = z.infer<typeof autoCategorizeRequestSchema>;
 export type CategorySuggestion = z.infer<typeof categorySuggestionSchema>;
+export type UpdateTransactionTypeInput = z.infer<typeof updateTransactionTypeSchema>;

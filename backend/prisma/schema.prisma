@@ -154,6 +154,10 @@ model Transaction {
   spendingCategory    String? @map("spending_category") @db.VarChar(50)
   spendingSubcategory String? @map("spending_subcategory") @db.VarChar(255)
 
+  // Flags
+  isDuplicate Boolean @default(false) @map("is_duplicate")
+  isManual    Boolean @default(false) @map("is_manual")
+
   createdAt DateTime @default(now()) @map("created_at")
 
   import TransactionImport @relation(fields: [importId], references: [id], onDelete: Cascade)

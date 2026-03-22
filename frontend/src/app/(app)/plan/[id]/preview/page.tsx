@@ -1,7 +1,8 @@
 "use client";
 
-import { use } from "react";
+import { use, useMemo } from "react";
 import { usePlan } from "@/hooks/use-spending-plan";
+import { useTransactions } from "@/hooks/use-transactions";
 import { Button } from "@/components/ui/button";
 import { MISCELLANEOUS_RATE } from "@csp/shared";
 
@@ -17,6 +18,42 @@ export default function PreviewPage({
 }) {
   const { id: planId } = use(params);
   const { data: plan, isLoading } = usePlan(planId);
+  const { data: transactions } = useTransactions(planId);
+
+  // Same transaction-based fixed costs logic as the plan page
+  const fixedCategoryTotals = useMemo<Record<string, number>>(() => {
+    if (!transactions) return {};
+    const totals: Record<string, number> = {};
+    for (const t of transactions) {
+      if (
+        t.spendingCategory !== "fixed_costs" ||
+        !t.spendingSubcategory ||
+        t.isDuplicate ||
+        t.type === "Payment"
+      ) continue;
+      totals[t.spendingSubcategory] = (totals[t.spendingSubcategory] ?? 0) + Math.abs(t.amount);
+    }
+    return totals;
+  }, [transactions]);
+
+  const calcs = useMemo(() => {
+    if (!plan) return null;
+    const net = plan.netMonthlyIncome;
+    const fixedCostsSubtotal = Object.values(fixedCategoryTotals).reduce((s, v) => s + v, 0);
+    const miscellaneous = fixedCostsSubtotal * MISCELLANEOUS_RATE;
+    const fixedCostsTotal = fixedCostsSubtotal + miscellaneous;
+    const { investmentsTotal, savingsTotal } = plan.calculations;
+    const guiltFreeTotal = net - fixedCostsTotal - investmentsTotal - savingsTotal;
+    return {
+      ...plan.calculations,
+      fixedCostsSubtotal,
+      miscellaneous,
+      fixedCostsTotal,
+      fixedCostsPercentage: net > 0 ? fixedCostsTotal / net : 0,
+      guiltFreeTotal,
+      guiltFreePercentage: net > 0 ? guiltFreeTotal / net : 0,
+    };
+  }, [plan, fixedCategoryTotals]);
 
   async function handleDownload() {
     const res = await fetch(`/api/backend/plans/${planId}/export`);
@@ -30,7 +67,7 @@ export default function PreviewPage({
     URL.revokeObjectURL(url);
   }
 
-  if (isLoading || !plan) {
+  if (isLoading || !plan || !calcs) {
     return (
       <div className="text-center py-12 text-gray-500 font-sans">
         Loading preview...
@@ -38,10 +75,9 @@ export default function PreviewPage({
     );
   }
 
-  const fc = plan.lineItems.filter((i) => i.section === "fixed_costs");
   const inv = plan.lineItems.filter((i) => i.section === "investments");
   const sav = plan.lineItems.filter((i) => i.section === "savings");
-  const calcs = plan.calculations;
+  const fcEntries = Object.entries(fixedCategoryTotals).sort(([a], [b]) => a.localeCompare(b));
   const fmt = (n: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -119,9 +155,9 @@ export default function PreviewPage({
         </SectionBlock>
 
         {/* FIXED COSTS */}
-        <SectionBlock title={`FIXED COSTS (50-60%)`} percentage={pct(calcs.fixedCostsPercentage)}>
-          {fc.map((item) => (
-            <DataRow key={item.id} label={item.label} value={fmt(item.amount)} />
+        <SectionBlock title={`FIXED COSTS (50-60%)`} percentage={calcs.fixedCostsPercentage > 0 ? pct(calcs.fixedCostsPercentage) : undefined}>
+          {fcEntries.map(([label, amount]) => (
+            <DataRow key={label} label={label} value={fmt(amount)} />
           ))}
           <div className="flex justify-between px-6 py-2 text-gray-500 italic text-sm font-sans">
             <span>Miscellaneous (auto {Math.round(MISCELLANEOUS_RATE * 100)}%)</span>
@@ -131,7 +167,7 @@ export default function PreviewPage({
         </SectionBlock>
 
         {/* INVESTMENTS */}
-        <SectionBlock title="INVESTMENTS (10%)" percentage={pct(calcs.investmentsPercentage)}>
+        <SectionBlock title="INVESTMENTS (10%)" percentage={calcs.investmentsPercentage > 0 ? pct(calcs.investmentsPercentage) : undefined}>
           {inv.map((item) => (
             <DataRow key={item.id} label={item.label} value={fmt(item.amount)} />
           ))}
@@ -139,7 +175,7 @@ export default function PreviewPage({
         </SectionBlock>
 
         {/* SAVINGS GOALS */}
-        <SectionBlock title="SAVINGS GOALS (5-10%)" percentage={pct(calcs.savingsPercentage)}>
+        <SectionBlock title="SAVINGS GOALS (5-10%)" percentage={calcs.savingsPercentage > 0 ? pct(calcs.savingsPercentage) : undefined}>
           {sav.map((item) => (
             <DataRow key={item.id} label={item.label} value={fmt(item.amount)} />
           ))}
@@ -147,7 +183,7 @@ export default function PreviewPage({
         </SectionBlock>
 
         {/* GUILT-FREE SPENDING */}
-        <SectionBlock title="GUILT-FREE SPENDING (20-35%)" percentage={pct(calcs.guiltFreePercentage)}>
+        <SectionBlock title="GUILT-FREE SPENDING (20-35%)" percentage={calcs.guiltFreePercentage !== 0 ? pct(calcs.guiltFreePercentage) : undefined}>
           <TotalBlock
             label="GUILT-FREE SPENDING TOTAL"
             value={fmt(calcs.guiltFreeTotal)}

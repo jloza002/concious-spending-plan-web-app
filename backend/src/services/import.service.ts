@@ -5,7 +5,7 @@ import { normalizeDescription } from "../utils/normalize.js";
 
 /**
  * Import parsed CSV transactions into a spending plan.
- * Returns the created import with transactions.
+ * Aggregates with existing transactions and marks duplicates.
  */
 export async function importTransactions(
   planId: string,
@@ -20,27 +20,91 @@ export async function importTransactions(
     throw new AppError("Spending plan not found", 404);
   }
 
+  // Build a set of existing transaction keys to detect duplicates
+  const existing = await prisma.transaction.findMany({
+    where: { import: { spendingPlanId: planId } },
+    select: { transactionDate: true, description: true, amount: true },
+  });
+  const existingKeys = new Set(
+    existing.map(
+      (t) => `${t.transactionDate.toISOString().split("T")[0]}|${t.description}|${Number(t.amount)}`
+    )
+  );
+
   const importRecord = await prisma.transactionImport.create({
     data: {
       spendingPlanId: planId,
       transactions: {
-        create: transactions.map((t) => ({
-          transactionDate: new Date(t.transactionDate),
-          postDate: new Date(t.postDate),
-          description: t.description,
-          originalCategory: t.category || null,
-          type: t.type,
-          amount: t.amount,
-          memo: t.memo || null,
-        })),
+        create: transactions.map((t) => {
+          const key = `${new Date(t.transactionDate).toISOString().split("T")[0]}|${t.description}|${t.amount}`;
+          return {
+            transactionDate: new Date(t.transactionDate),
+            postDate: new Date(t.postDate),
+            description: t.description,
+            originalCategory: t.category || null,
+            type: t.type,
+            amount: t.amount,
+            memo: t.memo || null,
+            isDuplicate: existingKeys.has(key),
+          };
+        }),
       },
     },
-    include: {
-      transactions: true,
-    },
+    include: { transactions: true },
   });
 
   return importRecord;
+}
+
+/** Delete a single transaction */
+export async function deleteTransaction(transactionId: string, userId: string) {
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+    include: { import: { include: { spendingPlan: true } } },
+  });
+  if (!transaction || transaction.import.spendingPlan.userId !== userId) {
+    throw new AppError("Transaction not found", 404);
+  }
+  await prisma.transaction.delete({ where: { id: transactionId } });
+}
+
+/** Add a single manual transaction to a plan */
+export async function addManualTransaction(
+  planId: string,
+  userId: string,
+  data: {
+    transactionDate: string;
+    description: string;
+    type: string;
+    amount: number;
+    memo?: string;
+  }
+) {
+  const plan = await prisma.spendingPlan.findFirst({
+    where: { id: planId, userId },
+  });
+  if (!plan) throw new AppError("Spending plan not found", 404);
+
+  const date = new Date(data.transactionDate);
+  const importRecord = await prisma.transactionImport.create({
+    data: {
+      spendingPlanId: planId,
+      transactions: {
+        create: [{
+          transactionDate: date,
+          postDate: date,
+          description: data.description,
+          type: data.type,
+          amount: data.amount,
+          memo: data.memo || null,
+          isManual: true,
+        }],
+      },
+    },
+    include: { transactions: true },
+  });
+
+  return importRecord.transactions[0];
 }
 
 /** Get all transactions for a spending plan */
@@ -78,6 +142,8 @@ export async function getTransactions(planId: string, userId: string) {
       memo: t.memo,
       spendingCategory: t.spendingCategory,
       spendingSubcategory: t.spendingSubcategory,
+      isDuplicate: t.isDuplicate,
+      isManual: t.isManual,
     }))
   );
 }
@@ -108,6 +174,27 @@ export async function assignCategory(
   return prisma.transaction.update({
     where: { id: transactionId },
     data: { spendingCategory, spendingSubcategory },
+  });
+}
+
+/** Update a transaction's type */
+export async function updateTransactionType(
+  transactionId: string,
+  userId: string,
+  type: "Sale" | "Return" | "Payment" | "Adjustment"
+) {
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+    include: { import: { include: { spendingPlan: true } } },
+  });
+
+  if (!transaction || transaction.import.spendingPlan.userId !== userId) {
+    throw new AppError("Transaction not found", 404);
+  }
+
+  return prisma.transaction.update({
+    where: { id: transactionId },
+    data: { type },
   });
 }
 

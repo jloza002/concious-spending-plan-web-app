@@ -68,7 +68,7 @@ export default function PlanLayout({
             Plan
           </PlanTab>
           <PlanTab href={`/plan/${planId}/import`}>
-            Import CSV
+            Transactions
           </PlanTab>
           <PlanTab href={`/plan/${planId}/preview`}>
             Preview &amp; Export

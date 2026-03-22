@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
-import { importTransactionsSchema, autoCategorizeRequestSchema } from "@csp/shared";
+import { importTransactionsSchema, autoCategorizeRequestSchema, manualTransactionSchema } from "@csp/shared";
 import * as importService from "../services/import.service.js";
 
 export const importRoutes = Router();
@@ -30,6 +30,17 @@ importRoutes.get("/:id/transactions", async (req, res, next) => {
       req.user!.sub
     );
     res.json(transactions);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** POST /plans/:id/transaction - Add a manual transaction */
+importRoutes.post("/:id/transaction", async (req, res, next) => {
+  try {
+    const data = manualTransactionSchema.parse(req.body);
+    const result = await importService.addManualTransaction(req.params.id, req.user!.sub, data);
+    res.status(201).json(result);
   } catch (err) {
     next(err);
   }
