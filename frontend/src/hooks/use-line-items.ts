@@ -21,10 +21,12 @@ export function useAddLineItem(planId: string) {
   });
 }
 
-/** Update a line item with debounce */
+/** Update a line item with debounce + optimistic cache update */
 export function useUpdateLineItem(planId: string) {
   const queryClient = useQueryClient();
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Keep a pending-changes map so debounced values are applied optimistically immediately
+  const pendingRef = useRef<Record<string, UpdateLineItemInput>>({});
 
   const mutation = useMutation({
     mutationFn: ({
@@ -41,12 +43,41 @@ export function useUpdateLineItem(planId: string) {
 
   const debouncedUpdate = useCallback(
     (itemId: string, data: UpdateLineItemInput) => {
+      // Apply optimistically to cache immediately so page doesn't jump on server response
+      pendingRef.current[itemId] = { ...pendingRef.current[itemId], ...data };
+      queryClient.setQueryData<SpendingPlan>(["plan", planId], (old) => {
+        if (!old) return old;
+        const updatedItems = old.lineItems.map((item) =>
+          item.id === itemId ? { ...item, ...pendingRef.current[itemId] } : item
+        );
+        const investmentsTotal = updatedItems
+          .filter((i) => i.section === "investments")
+          .reduce((s, i) => s + i.amount, 0);
+        const savingsTotal = updatedItems
+          .filter((i) => i.section === "savings")
+          .reduce((s, i) => s + i.amount, 0);
+        const net = old.netMonthlyIncome;
+        return {
+          ...old,
+          lineItems: updatedItems,
+          calculations: {
+            ...old.calculations,
+            investmentsTotal,
+            savingsTotal,
+            investmentsPercentage: net > 0 ? investmentsTotal / net : 0,
+            savingsPercentage: net > 0 ? savingsTotal / net : 0,
+          },
+        };
+      });
+
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
-        mutation.mutate({ itemId, data });
+        const latestData = pendingRef.current[itemId] ?? data;
+        delete pendingRef.current[itemId];
+        mutation.mutate({ itemId, data: latestData });
       }, 500);
     },
-    [mutation]
+    [mutation, planId, queryClient]
   );
 
   return { ...mutation, debouncedUpdate };
