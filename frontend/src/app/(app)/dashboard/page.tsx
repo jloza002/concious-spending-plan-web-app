@@ -10,6 +10,10 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+const fmt = (n: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+const pct = (n: number) => `${Math.round(n * 100)}%`;
+
 export default function DashboardPage() {
   const { data: plans, isLoading } = usePlans();
   const createPlan = useCreatePlan();
@@ -17,6 +21,7 @@ export default function DashboardPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newMonth, setNewMonth] = useState(new Date().getMonth() + 1);
   const [newYear, setNewYear] = useState(new Date().getFullYear());
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   async function handleCreate() {
     try {
@@ -31,6 +36,13 @@ export default function DashboardPage() {
     setNewMonth(new Date().getMonth() + 1);
     setNewYear(new Date().getFullYear());
     setShowCreate(true);
+  }
+
+  function confirmDelete() {
+    if (deleteId) {
+      deletePlan.mutate(deleteId);
+      setDeleteId(null);
+    }
   }
 
   if (isLoading) {
@@ -57,7 +69,6 @@ export default function DashboardPage() {
           onMouseDown={(e) => { if (e.target === e.currentTarget) setShowCreate(false); }}
         >
           <div className="bg-[var(--color-cream)] rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
-            {/* Header */}
             <div className="bg-[var(--color-dark-teal)] px-6 py-4 flex items-center justify-between">
               <h2 className="font-display text-lg font-bold text-[var(--color-warm-beige)]">
                 New Spending Plan
@@ -69,8 +80,6 @@ export default function DashboardPage() {
                 ✕
               </button>
             </div>
-
-            {/* Body */}
             <div className="px-6 py-6 space-y-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5 font-sans">
@@ -86,7 +95,6 @@ export default function DashboardPage() {
                   ))}
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5 font-sans">
                   Year
@@ -98,21 +106,52 @@ export default function DashboardPage() {
                   className="w-full px-3 py-2.5 border border-gray-300 rounded-lg font-sans text-sm focus:outline-none focus:border-[var(--color-orange)]"
                 />
               </div>
-
               {createPlan.error && (
-                <p className="text-sm text-red-500 font-sans">
-                  {createPlan.error.message}
-                </p>
+                <p className="text-sm text-red-500 font-sans">{createPlan.error.message}</p>
               )}
             </div>
-
-            {/* Footer */}
             <div className="px-6 pb-6 flex gap-3 justify-end">
-              <Button variant="ghost" onClick={() => setShowCreate(false)}>
-                Cancel
-              </Button>
+              <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
               <Button onClick={handleCreate} disabled={createPlan.isPending}>
                 {createPlan.isPending ? "Creating..." : "Create Plan"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setDeleteId(null); }}
+        >
+          <div className="bg-[var(--color-cream)] rounded-2xl shadow-xl w-full max-w-sm mx-4 overflow-hidden">
+            <div className="bg-[var(--color-dark-teal)] px-6 py-4 flex items-center justify-between">
+              <h2 className="font-display text-lg font-bold text-[var(--color-warm-beige)]">
+                Delete Plan
+              </h2>
+              <button
+                onClick={() => setDeleteId(null)}
+                className="text-[var(--color-warm-beige)] opacity-70 hover:opacity-100 text-xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-6 py-6">
+              <p className="font-sans text-gray-700 text-sm">
+                Are you sure you want to delete this spending plan? This will permanently remove all
+                transactions and data associated with it. This action cannot be undone.
+              </p>
+            </div>
+            <div className="px-6 pb-6 flex gap-3 justify-end">
+              <Button variant="ghost" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button
+                onClick={confirmDelete}
+                disabled={deletePlan.isPending}
+                className="bg-red-500 hover:bg-red-600 text-white"
+              >
+                {deletePlan.isPending ? "Deleting..." : "Delete Plan"}
               </Button>
             </div>
           </div>
@@ -125,46 +164,86 @@ export default function DashboardPage() {
           {plans.map((plan) => (
             <div
               key={plan.id}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow"
+              className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
             >
+              {/* Card header */}
+              <div className="bg-[var(--color-dark-teal)] px-5 py-4">
+                <Link href={`/plan/${plan.id}`}>
+                  <h3 className="font-display text-lg font-bold text-white">
+                    {MONTH_NAMES[plan.month - 1]} {plan.year}
+                  </h3>
+                  <p className="font-sans text-sm text-white/70 mt-0.5">
+                    Net Income: {fmt(plan.netMonthlyIncome)}
+                  </p>
+                </Link>
+              </div>
+
+              {/* Percentage breakdown bar */}
               <Link href={`/plan/${plan.id}`}>
-                <h3 className="font-display text-lg font-bold text-[var(--color-dark-teal)]">
-                  {MONTH_NAMES[plan.month - 1]} {plan.year}
-                </h3>
-                <div className="mt-3 space-y-1 font-sans text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Net Income</span>
-                    <span className="font-medium">
-                      ${plan.netMonthlyIncome.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                    </span>
+                <div className="flex h-2">
+                  <div
+                    className="bg-[var(--color-dark-teal)] opacity-70"
+                    style={{ width: `${Math.max((plan.fixedCostsPercentage ?? 0) * 100, 0)}%` }}
+                  />
+                  <div
+                    className="bg-blue-500"
+                    style={{ width: `${Math.max((plan.investmentsPercentage ?? 0) * 100, 0)}%` }}
+                  />
+                  <div
+                    className="bg-green-500"
+                    style={{ width: `${Math.max((plan.savingsPercentage ?? 0) * 100, 0)}%` }}
+                  />
+                  <div
+                    className="bg-[var(--color-orange)]"
+                    style={{ width: `${Math.max((plan.guiltFreePercentage ?? 0) * 100, 0)}%` }}
+                  />
+                </div>
+
+                {/* Section rows */}
+                <div className="px-5 py-4 space-y-2">
+                  <div className="flex items-center justify-between font-sans text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-[var(--color-dark-teal)] opacity-70 shrink-0" />
+                      <span className="text-gray-600">Fixed Costs</span>
+                    </div>
+                    <span className="font-medium text-gray-800">{pct(plan.fixedCostsPercentage ?? 0)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Fixed Costs</span>
-                    <span className="font-medium">
-                      {Math.round(plan.fixedCostsPercentage * 100)}%
-                    </span>
+                  <div className="flex items-center justify-between font-sans text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-blue-500 shrink-0" />
+                      <span className="text-gray-600">Investments</span>
+                    </div>
+                    <span className="font-medium text-gray-800">{pct(plan.investmentsPercentage ?? 0)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Guilt-Free</span>
+                  <div className="flex items-center justify-between font-sans text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-green-500 shrink-0" />
+                      <span className="text-gray-600">Savings</span>
+                    </div>
+                    <span className="font-medium text-gray-800">{pct(plan.savingsPercentage ?? 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-sans text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-[var(--color-orange)] shrink-0" />
+                      <span className="text-gray-600">Guilt-Free</span>
+                    </div>
                     <span
-                      className={`font-medium ${plan.guiltFreeTotal < 0 ? "text-red-500" : "text-green-600"}`}
+                      className={`font-medium ${(plan.guiltFreeTotal ?? 0) < 0 ? "text-red-500" : "text-gray-800"}`}
                     >
-                      ${plan.guiltFreeTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      {pct(plan.guiltFreePercentage ?? 0)}
                     </span>
                   </div>
                 </div>
               </Link>
-              <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
+
+              {/* Footer */}
+              <div className="px-5 py-3 border-t border-gray-100 flex justify-between items-center">
                 <span className="text-xs text-gray-400 font-sans">
                   Updated {new Date(plan.updatedAt).toLocaleDateString()}
                 </span>
                 <button
-                  onClick={() => {
-                    if (confirm("Delete this plan?")) {
-                      deletePlan.mutate(plan.id);
-                    }
-                  }}
-                  className="text-xs text-gray-400 hover:text-red-500 font-sans"
+                  onClick={() => setDeleteId(plan.id)}
+                  className="text-xs text-gray-400 hover:text-red-500 font-sans transition-colors"
                 >
                   Delete
                 </button>
