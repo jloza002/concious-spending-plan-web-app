@@ -166,6 +166,7 @@ export async function listPlans(userId: string) {
       month: plan.month,
       year: plan.year,
       netMonthlyIncome: net,
+      totalNetWorth: Number(plan.assets) + Number(plan.investmentsNw) + Number(plan.savingsNw) - Number(plan.debt),
       fixedCostsPercentage: safePercent(fcTotal),
       investmentsPercentage: safePercent(investmentsTotal),
       savingsPercentage: safePercent(savingsTotal),

@@ -76,7 +76,11 @@ export interface PlanSummary {
   month: number;
   year: number;
   netMonthlyIncome: number;
+  totalNetWorth: number;
   fixedCostsPercentage: number;
+  investmentsPercentage: number;
+  savingsPercentage: number;
+  guiltFreePercentage: number;
   guiltFreeTotal: number;
   updatedAt: string;
 }

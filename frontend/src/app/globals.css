@@ -43,6 +43,59 @@ input[type="number"] {
 
 /* Print styles */
 @media print {
-  nav, .no-print { display: none !important; }
-  body { background: white; }
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  nav,
+  .no-print {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: white !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Scale entire page content to fit one A4 page */
+  body {
+    zoom: 0.72;
+    width: 794px; /* A4 at 96dpi */
+  }
+
+  main {
+    padding: 0.3in !important;
+    display: flex !important;
+    justify-content: center !important;
+  }
+
+  /* Remove card chrome for print */
+  .shadow-lg,
+  .shadow-sm,
+  .shadow-md,
+  .shadow-xl {
+    box-shadow: none !important;
+  }
+
+  /* Remove rounded corners */
+  .rounded-lg,
+  .rounded-2xl {
+    border-radius: 0 !important;
+  }
+
+  /* Avoid page breaks inside sections */
+  .mb-1 {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }

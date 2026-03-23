@@ -214,6 +214,9 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
     return "";
   }
 
+  const MAX_FILE_SIZE_MB = 5;
+  const MAX_ROWS = 10_000;
+
   function normalizeDate(s: string): string {
     if (!s) return "";
     // Already ISO YYYY-MM-DD
@@ -221,26 +224,35 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
     // MM/DD/YYYY or M/D/YYYY
     const parts = s.split("/");
     if (parts.length === 3) {
-      const [m, d, y] = parts;
-      const year = y.length === 2 ? `20${y}` : y;
-      return `${year}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+      const m = parseInt(parts[0], 10);
+      const d = parseInt(parts[1], 10);
+      let y = parseInt(parts[2], 10);
+      if (parts[2].length === 2) y += 2000;
+      if (isNaN(m) || isNaN(d) || isNaN(y) || m < 1 || m > 12 || d < 1 || d > 31 || y < 1900 || y > 2100) return "";
+      return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
     }
-    return s;
+    return "";
   }
 
   function isValidDate(s: string): boolean {
     const n = normalizeDate(s);
-    return !!n && !isNaN(new Date(n).getTime());
+    if (!n) return false;
+    const dt = new Date(n);
+    return !isNaN(dt.getTime()) && dt.getFullYear() >= 1900 && dt.getFullYear() <= 2100;
   }
 
   function parseFile(file: File) {
     setParseError("");
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      setParseError(`File is too large. Maximum allowed size is ${MAX_FILE_SIZE_MB}MB.`);
+      return;
+    }
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
         try {
-          const rows = results.data as Record<string, string>[];
+          const rows = (results.data as Record<string, string>[]).slice(0, MAX_ROWS);
           const transactions: CsvTransaction[] = rows
             .map((row) => {
               const rawDate = pick(row, "Transaction Date", "Date", "Posting Date", "Trans Date", "TransDate");
@@ -273,16 +285,31 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
     });
   }
 
+  function isValidCsvFile(file: File): boolean {
+    const validTypes = ["text/csv", "text/plain", "application/csv", "application/vnd.ms-excel"];
+    return file.name.endsWith(".csv") && (validTypes.includes(file.type) || file.type === "");
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) parseFile(file);
+    if (!file) return;
+    if (!isValidCsvFile(file)) {
+      setParseError("Invalid file type. Please upload a .csv file.");
+      return;
+    }
+    parseFile(file);
   }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
-    if (file?.name.endsWith(".csv")) parseFile(file);
+    if (!file) return;
+    if (!isValidCsvFile(file)) {
+      setParseError("Invalid file type. Please upload a .csv file.");
+      return;
+    }
+    parseFile(file);
   }
 
   async function handleImport() {

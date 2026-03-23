@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { errorHandler } from "./middleware/error-handler.js";
+import { authRateLimiter, softRateLimiter, importRateLimiter } from "./middleware/rate-limiter.js";
 import { planRoutes } from "./routes/plan.routes.js";
 import { lineItemRoutes } from "./routes/line-item.routes.js";
 import { importRoutes } from "./routes/import.routes.js";
@@ -14,36 +15,87 @@ import { apiV1Routes } from "./routes/api-v1/index.js";
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Security middleware
-app.use(helmet());
+// ── Security headers ───────────────────────────────────────────────────────
+app.use(
+  helmet({
+    hsts: {
+      maxAge: 31536000,       // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+  })
+);
+
+// ── CORS ───────────────────────────────────────────────────────────────────
+const ALLOWED_ORIGINS: string[] = (process.env.CORS_ORIGIN || "http://localhost:3000")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+    origin: (origin, callback) => {
+      // Allow server-to-server calls (no Origin header) only in non-production
+      if (!origin) {
+        if (process.env.NODE_ENV === "production") {
+          return callback(new Error("CORS: missing Origin header"), false);
+        }
+        return callback(null, true);
+      }
+      if (ALLOWED_ORIGINS.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS: origin '${origin}' not allowed`), false);
+    },
     credentials: true,
   })
 );
-app.use(express.json({ limit: "10mb" }));
 
-// Health check
+// ── Body parsing ───────────────────────────────────────────────────────────
+app.use(express.json({ limit: "1mb" }));
+
+// ── Request timeout ────────────────────────────────────────────────────────
+app.use((_req, res, next) => {
+  res.setTimeout(30000, () => {
+    res.status(408).json({ error: "Request Timeout", message: "Request took too long." });
+  });
+  next();
+});
+
+// ── Health check ───────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Auth routes (public)
+// ── Auth routes (rate-limited, public) ────────────────────────────────────
+app.post("/auth/register", authRateLimiter);
+app.post("/auth/login", authRateLimiter);
+app.post("/auth/forgot-password", authRateLimiter);
+app.post("/auth/reset-password", authRateLimiter);
+app.post("/auth/resend-verification", softRateLimiter);
+app.post("/auth/refresh", softRateLimiter);
 app.use("/auth", authRoutes);
 
-// API routes (authenticated)
+// ── Authenticated API routes ───────────────────────────────────────────────
 app.use("/plans", planRoutes);
 app.use("/plans", lineItemRoutes);
-app.use("/plans", importRoutes);
+app.use("/plans", importRateLimiter, importRoutes);
 app.use("/transactions", transactionRoutes);
 app.use("/category-mappings", categoryMappingRoutes);
 app.use("/plans", exportRoutes);
 
-// Disabled public API (v1)
+// ── Disabled public API (v1) ───────────────────────────────────────────────
 app.use("/api/v1", apiV1Routes);
 
-// Error handling (must be last)
+// ── Error handling (must be last) ─────────────────────────────────────────
 app.use(errorHandler);
 
 app.listen(PORT, () => {

@@ -140,8 +140,10 @@ export default function DashboardPage() {
             </div>
             <div className="px-6 py-6">
               <p className="font-sans text-gray-700 text-sm">
-                Are you sure you want to delete this spending plan? This will permanently remove all
-                transactions and data associated with it. This action cannot be undone.
+                Are you sure you want to delete this spending plan?
+              </p>
+              <p className="font-sans text-gray-700 text-sm mt-2">
+                This will permanently remove all transactions and data associated with it. This action cannot be undone.
               </p>
             </div>
             <div className="px-6 pb-6 flex gap-3 justify-end">
@@ -171,6 +173,10 @@ export default function DashboardPage() {
                   {MONTH_NAMES[plan.month - 1]} {plan.year}
                 </h3>
                 <div className="mt-3 space-y-1 font-sans text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Net Worth</span>
+                    <span className="font-medium">{fmt(plan.totalNetWorth ?? 0)}</span>
+                  </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Net Income</span>
                     <span className="font-medium">{fmt(plan.netMonthlyIncome)}</span>
