@@ -287,7 +287,7 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
 
   function isValidCsvFile(file: File): boolean {
     const validTypes = ["text/csv", "text/plain", "application/csv", "application/vnd.ms-excel"];
-    return file.name.endsWith(".csv") && (validTypes.includes(file.type) || file.type === "");
+    return file.name.toLowerCase().endsWith(".csv") && (validTypes.includes(file.type) || file.type === "");
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -357,7 +357,7 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
               </p>
               <label className="inline-flex items-center gap-2 cursor-pointer px-4 py-2 bg-[#15302F] text-[var(--color-warm-beige)] text-sm font-medium rounded-lg hover:bg-[#15302F]/90 transition-colors font-sans">
                 Browse File
-                <input type="file" accept=".csv" onChange={handleFileChange} className="hidden" />
+                <input type="file" accept=".csv,.CSV" onChange={handleFileChange} className="hidden" />
               </label>
               {parseError && (
                 <p className="mt-3 text-sm text-red-500 font-sans">{parseError}</p>
