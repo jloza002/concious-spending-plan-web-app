@@ -200,25 +200,18 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Section rows */}
-                <div className="px-5 py-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
-                  <div className="flex justify-between font-sans text-xs">
-                    <span className="text-gray-500">Fixed Costs</span>
-                    <span className="font-medium text-gray-800">{pct(plan.fixedCostsPercentage ?? 0)}</span>
-                  </div>
-                  <div className="flex justify-between font-sans text-xs">
-                    <span className="text-gray-500">Investments</span>
-                    <span className="font-medium text-gray-800">{pct(plan.investmentsPercentage ?? 0)}</span>
-                  </div>
-                  <div className="flex justify-between font-sans text-xs">
-                    <span className="text-gray-500">Savings</span>
-                    <span className="font-medium text-gray-800">{pct(plan.savingsPercentage ?? 0)}</span>
-                  </div>
-                  <div className="flex justify-between font-sans text-xs">
-                    <span className="text-gray-500">Guilt-Free</span>
-                    <span className={`font-medium ${(plan.guiltFreeTotal ?? 0) < 0 ? "text-red-500" : "text-gray-800"}`}>
-                      {pct(plan.guiltFreePercentage ?? 0)}
-                    </span>
-                  </div>
+                <div className="px-5 py-3 space-y-1">
+                  {[
+                    { label: "Fixed Costs", value: pct(plan.fixedCostsPercentage ?? 0), red: false },
+                    { label: "Investments", value: pct(plan.investmentsPercentage ?? 0), red: false },
+                    { label: "Savings",     value: pct(plan.savingsPercentage ?? 0),     red: false },
+                    { label: "Guilt-Free",  value: pct(plan.guiltFreePercentage ?? 0),   red: (plan.guiltFreeTotal ?? 0) < 0 },
+                  ].map(({ label, value, red }) => (
+                    <div key={label} className="flex items-center gap-2 font-sans text-xs">
+                      <span className="text-gray-500 w-24 shrink-0">{label}</span>
+                      <span className={`font-medium ${red ? "text-red-500" : "text-gray-800"}`}>{value}</span>
+                    </div>
+                  ))}
                 </div>
               </Link>
 
