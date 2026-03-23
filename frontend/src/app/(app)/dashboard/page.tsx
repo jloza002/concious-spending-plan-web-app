@@ -164,47 +164,40 @@ export default function DashboardPage() {
           {plans.map((plan) => (
             <div
               key={plan.id}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow"
             >
-              {/* Card header */}
-              <div className="bg-[var(--color-dark-teal)] px-4 py-3">
-                <Link href={`/plan/${plan.id}`}>
-                  <h3 className="font-display text-base font-bold text-white">
-                    {MONTH_NAMES[plan.month - 1]} {plan.year}
-                  </h3>
-                  <p className="font-sans text-xs text-white/70 mt-0.5">
-                    Net Income: {fmt(plan.netMonthlyIncome)}
-                  </p>
-                </Link>
-              </div>
-
-              {/* Percentage breakdown bar */}
               <Link href={`/plan/${plan.id}`}>
-                <div className="flex h-1.5">
-                  <div className="bg-[var(--color-dark-teal)] opacity-70" style={{ width: `${Math.max((plan.fixedCostsPercentage ?? 0) * 100, 0)}%` }} />
-                  <div className="bg-blue-500" style={{ width: `${Math.max((plan.investmentsPercentage ?? 0) * 100, 0)}%` }} />
-                  <div className="bg-green-500" style={{ width: `${Math.max((plan.savingsPercentage ?? 0) * 100, 0)}%` }} />
-                  <div className="bg-[var(--color-orange)]" style={{ width: `${Math.max((plan.guiltFreePercentage ?? 0) * 100, 0)}%` }} />
-                </div>
-
-                {/* Section rows */}
-                <div className="px-4 py-2.5 space-y-1">
-                  {[
-                    { label: "Fixed Costs", value: pct(plan.fixedCostsPercentage ?? 0), red: false },
-                    { label: "Investments", value: pct(plan.investmentsPercentage ?? 0), red: false },
-                    { label: "Savings",     value: pct(plan.savingsPercentage ?? 0),     red: false },
-                    { label: "Guilt-Free",  value: pct(plan.guiltFreePercentage ?? 0),   red: (plan.guiltFreeTotal ?? 0) < 0 },
-                  ].map(({ label, value, red }) => (
-                    <div key={label} className="flex items-center font-sans text-xs">
-                      <span className="text-gray-400 w-20 shrink-0">{label}</span>
-                      <span className={`font-semibold ${red ? "text-red-500" : "text-[var(--color-dark-teal)]"}`}>{value}</span>
-                    </div>
-                  ))}
+                <h3 className="font-display text-lg font-bold text-[var(--color-dark-teal)]">
+                  {MONTH_NAMES[plan.month - 1]} {plan.year}
+                </h3>
+                <div className="mt-3 space-y-1 font-sans text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Net Income</span>
+                    <span className="font-medium">{fmt(plan.netMonthlyIncome)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Fixed Costs</span>
+                    <span className="font-medium">{pct(plan.fixedCostsPercentage ?? 0)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Investments</span>
+                    <span className="font-medium">{pct(plan.investmentsPercentage ?? 0)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Savings</span>
+                    <span className="font-medium">{pct(plan.savingsPercentage ?? 0)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Guilt-Free</span>
+                    <span className={`font-medium ${(plan.guiltFreeTotal ?? 0) < 0 ? "text-red-500" : "text-green-600"}`}>
+                      {pct(plan.guiltFreePercentage ?? 0)}
+                    </span>
+                  </div>
                 </div>
               </Link>
 
               {/* Footer */}
-              <div className="px-4 py-2 border-t border-gray-100 flex justify-between items-center">
+              <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
                 <span className="text-xs text-gray-400 font-sans">
                   Updated {new Date(plan.updatedAt).toLocaleDateString()}
                 </span>
