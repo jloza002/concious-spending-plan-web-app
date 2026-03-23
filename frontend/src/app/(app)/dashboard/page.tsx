@@ -200,36 +200,22 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Section rows */}
-                <div className="px-5 py-4 space-y-2">
-                  <div className="flex items-center justify-between font-sans text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-[var(--color-dark-teal)] opacity-70 shrink-0" />
-                      <span className="text-gray-600">Fixed Costs</span>
-                    </div>
+                <div className="px-5 py-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                  <div className="flex justify-between font-sans text-xs">
+                    <span className="text-gray-500">Fixed Costs</span>
                     <span className="font-medium text-gray-800">{pct(plan.fixedCostsPercentage ?? 0)}</span>
                   </div>
-                  <div className="flex items-center justify-between font-sans text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-blue-500 shrink-0" />
-                      <span className="text-gray-600">Investments</span>
-                    </div>
+                  <div className="flex justify-between font-sans text-xs">
+                    <span className="text-gray-500">Investments</span>
                     <span className="font-medium text-gray-800">{pct(plan.investmentsPercentage ?? 0)}</span>
                   </div>
-                  <div className="flex items-center justify-between font-sans text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-green-500 shrink-0" />
-                      <span className="text-gray-600">Savings</span>
-                    </div>
+                  <div className="flex justify-between font-sans text-xs">
+                    <span className="text-gray-500">Savings</span>
                     <span className="font-medium text-gray-800">{pct(plan.savingsPercentage ?? 0)}</span>
                   </div>
-                  <div className="flex items-center justify-between font-sans text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-[var(--color-orange)] shrink-0" />
-                      <span className="text-gray-600">Guilt-Free</span>
-                    </div>
-                    <span
-                      className={`font-medium ${(plan.guiltFreeTotal ?? 0) < 0 ? "text-red-500" : "text-gray-800"}`}
-                    >
+                  <div className="flex justify-between font-sans text-xs">
+                    <span className="text-gray-500">Guilt-Free</span>
+                    <span className={`font-medium ${(plan.guiltFreeTotal ?? 0) < 0 ? "text-red-500" : "text-gray-800"}`}>
                       {pct(plan.guiltFreePercentage ?? 0)}
                     </span>
                   </div>
