@@ -824,7 +824,7 @@ export default function TransactionsPage({
       {showAddTransaction && (
         <AddTransactionModal
           onClose={() => setShowAddTransaction(false)}
-          onAdd={(data) => addTransaction.mutateAsync(data)}
+          onAdd={async (data) => { await addTransaction.mutateAsync({ ...data, type: data.type as "Sale" | "Return" | "Payment" | "Adjustment" | "Debit" | "Credit" }); }}
           isAdding={addTransaction.isPending}
         />
       )}
