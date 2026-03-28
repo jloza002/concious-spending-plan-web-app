@@ -40,4 +40,4 @@ COPY --from=builder /app/backend/node_modules/.prisma backend/node_modules/.pris
 ENV NODE_ENV=production
 EXPOSE 4000
 
-CMD ["node", "backend/dist/server.js"]
+CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy --schema=backend/prisma/schema.prisma && node backend/dist/server.js"]

@@ -13,7 +13,7 @@ importRoutes.post("/:id/import", importRateLimiter, async (req, res, next) => {
   try {
     const data = importTransactionsSchema.parse(req.body);
     const result = await importService.importTransactions(
-      req.params.id,
+      req.params.id as string,
       req.user!.sub,
       data.transactions
     );

@@ -19,6 +19,10 @@ model User {
   image         String?
   passwordHash  String?   @map("password_hash")
 
+  // Security question for password reset (no email required)
+  securityQuestion   String? @map("security_question") @db.VarChar(255)
+  securityAnswerHash String? @map("security_answer_hash")
+
   // Profile fields
   phone         String?   @db.VarChar(50)
   bio           String?   @db.Text
