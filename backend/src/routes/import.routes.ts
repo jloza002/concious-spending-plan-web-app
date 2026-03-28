@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
+import { importRateLimiter } from "../middleware/rate-limiter.js";
 import { importTransactionsSchema, autoCategorizeRequestSchema, manualTransactionSchema } from "@csp/shared";
 import * as importService from "../services/import.service.js";
 
@@ -7,8 +8,8 @@ export const importRoutes = Router();
 
 importRoutes.use(requireAuth);
 
-/** POST /plans/:id/import - Import parsed CSV transactions */
-importRoutes.post("/:id/import", async (req, res, next) => {
+/** POST /plans/:id/import - Import parsed CSV transactions (rate-limited to 50/hr) */
+importRoutes.post("/:id/import", importRateLimiter, async (req, res, next) => {
   try {
     const data = importTransactionsSchema.parse(req.body);
     const result = await importService.importTransactions(

@@ -113,7 +113,7 @@ export default function PlanPage({
           investmentsNw={plan.investmentsNw}
           savingsNw={plan.savingsNw}
           debt={plan.debt}
-          totalNetWorth={calculations.totalNetWorth}
+          totalNetWorth={plan.assets + plan.investmentsNw + plan.savingsNw - plan.debt}
           onFieldChange={handleFieldChange}
         />
 

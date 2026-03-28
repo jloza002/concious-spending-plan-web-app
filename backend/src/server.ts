@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { errorHandler } from "./middleware/error-handler.js";
-import { authRateLimiter, softRateLimiter, importRateLimiter } from "./middleware/rate-limiter.js";
+import { authRateLimiter, softRateLimiter } from "./middleware/rate-limiter.js";
 import { planRoutes } from "./routes/plan.routes.js";
 import { lineItemRoutes } from "./routes/line-item.routes.js";
 import { importRoutes } from "./routes/import.routes.js";
@@ -87,7 +87,7 @@ app.use("/auth", authRoutes);
 // ── Authenticated API routes ───────────────────────────────────────────────
 app.use("/plans", planRoutes);
 app.use("/plans", lineItemRoutes);
-app.use("/plans", importRateLimiter, importRoutes);
+app.use("/plans", importRoutes);
 app.use("/transactions", transactionRoutes);
 app.use("/category-mappings", categoryMappingRoutes);
 app.use("/plans", exportRoutes);

@@ -34,7 +34,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-[var(--color-cream)] flex flex-col">
+      <div className="h-screen bg-[var(--color-cream)] flex flex-col">
         {/* Top Navigation */}
         <nav className="bg-[var(--color-dark-teal)] text-white no-print shrink-0">
           <div className="w-full px-6 lg:px-10 py-3 flex items-center justify-between">

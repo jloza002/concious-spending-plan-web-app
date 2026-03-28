@@ -286,8 +286,9 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
   }
 
   function isValidCsvFile(file: File): boolean {
-    const validTypes = ["text/csv", "text/plain", "application/csv", "application/vnd.ms-excel"];
-    return file.name.toLowerCase().endsWith(".csv") && (validTypes.includes(file.type) || file.type === "");
+    // Only check extension — MIME types for CSV are wildly inconsistent across
+    // browsers and operating systems (e.g. Windows may report application/octet-stream).
+    return file.name.toLowerCase().endsWith(".csv");
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {

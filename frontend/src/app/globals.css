@@ -61,7 +61,9 @@ input[type="number"] {
   }
 
   html,
-  body {
+  body,
+  body > div,
+  body > div > div {
     background: white !important;
     height: auto !important;
     overflow: visible !important;
