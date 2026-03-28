@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
+import { api } from "@/lib/api-client";
 
 interface ProfileData {
   firstName: string | null;
@@ -11,16 +12,6 @@ interface ProfileData {
   lastName: string | null;
   name: string | null;
   email: string;
-}
-
-async function apiFetch(path: string, options?: RequestInit) {
-  const res = await fetch(`/api/backend${path}`, {
-    ...options,
-    headers: { "Content-Type": "application/json", ...(options?.headers ?? {}) },
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || "Request failed");
-  return data;
 }
 
 export default function ProfilePage() {
@@ -51,8 +42,8 @@ export default function ProfilePage() {
   const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
-    apiFetch("/users/me")
-      .then((data: ProfileData) => {
+    api.get<ProfileData>("/users/me")
+      .then((data) => {
         setFirstName(data.firstName || "");
         setMiddleInitial(data.middleInitial || "");
         setLastName(data.lastName || "");
@@ -68,10 +59,7 @@ export default function ProfilePage() {
     setInfoError("");
     setInfoSuccess("");
     try {
-      await apiFetch("/users/me", {
-        method: "PUT",
-        body: JSON.stringify({ firstName, middleInitial: middleInitial || undefined, lastName, email }),
-      });
+      await api.put("/users/me", { firstName, middleInitial: middleInitial || undefined, lastName, email });
       setInfoSuccess("Profile updated successfully.");
       await updateSession();
     } catch (err: any) {
@@ -91,10 +79,7 @@ export default function ProfilePage() {
     setPwError("");
     setPwSuccess("");
     try {
-      await apiFetch("/users/me/password", {
-        method: "PUT",
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
+      await api.put("/users/me/password", { currentPassword, newPassword });
       setPwSuccess("Password updated. You may need to sign in again on other devices.");
       setCurrentPassword("");
       setNewPassword("");
@@ -110,10 +95,7 @@ export default function ProfilePage() {
     setDeleteLoading(true);
     setDeleteError("");
     try {
-      await apiFetch("/users/me", {
-        method: "DELETE",
-        body: JSON.stringify({ password: deletePassword }),
-      });
+      await api.delete("/users/me", { password: deletePassword });
       await signOut({ callbackUrl: "/login" });
     } catch (err: any) {
       setDeleteError(err.message || "Failed to delete account.");
