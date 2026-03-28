@@ -93,7 +93,7 @@ export default function PreviewPage({
 
   return (
     <div>
-      <div className="flex justify-end gap-3 mb-6 no-print">
+      <div className="flex justify-end gap-2 sm:gap-3 mb-4 sm:mb-6 no-print">
         <Button variant="ghost" onClick={() => window.print()}>
           Print
         </Button>
@@ -129,7 +129,7 @@ export default function PreviewPage({
           </div>
         </div>
         {/* Legend */}
-        <div className="flex items-center justify-end gap-5 mt-2 flex-wrap">
+        <div className="flex items-center justify-center sm:justify-end gap-4 sm:gap-5 mt-2 flex-wrap">
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-sm bg-[var(--color-dark-teal)] shrink-0" />
             <span className="text-xs font-sans text-gray-500">Fixed Costs</span>
@@ -150,9 +150,9 @@ export default function PreviewPage({
       </div>
 
       {/* Excel-like Preview */}
-      <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
+      <div className="max-w-2xl -mx-4 sm:mx-auto bg-white rounded-none sm:rounded-lg shadow-lg overflow-hidden">
         {/* Title */}
-        <div className="px-6 py-8 text-right">
+        <div className="px-4 sm:px-6 py-8 text-right">
           <h2 className="font-display text-3xl font-bold text-[var(--color-dark-teal)]">
             Conscious Spending Plan
           </h2>
@@ -184,7 +184,7 @@ export default function PreviewPage({
           {fcEntries.map(([label, amount]) => (
             <DataRow key={label} label={label} value={fmt(amount)} />
           ))}
-          <div className="flex justify-between px-6 py-2 text-gray-500 italic text-sm font-sans">
+          <div className="flex justify-between px-4 sm:px-6 py-2 text-gray-500 italic text-sm font-sans">
             <span>Miscellaneous (auto {Math.round(MISCELLANEOUS_RATE * 100)}%)</span>
             <span>{fmt(calcs.miscellaneous)}</span>
           </div>
@@ -231,7 +231,7 @@ function SectionBlock({
 }) {
   return (
     <div className="mb-1">
-      <div className="flex items-center justify-between bg-[var(--color-dark-teal)] px-6 py-3">
+      <div className="flex items-center justify-between bg-[var(--color-dark-teal)] px-4 sm:px-6 py-3">
         <span className="font-display text-white font-bold">{title}</span>
         {percentage && (
           <span className="font-sans text-[var(--color-orange)] font-bold">{percentage}</span>
@@ -244,7 +244,7 @@ function SectionBlock({
 
 function DataRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between px-6 py-2 border-b border-gray-50 text-sm font-sans">
+    <div className="flex justify-between px-4 sm:px-6 py-2 border-b border-gray-50 text-sm font-sans">
       <span className="text-gray-800">{label}</span>
       <span className="tabular-nums">{value}</span>
     </div>
@@ -261,7 +261,7 @@ function TotalBlock({
   negative?: boolean;
 }) {
   return (
-    <div className="flex justify-between px-6 py-2 border-t border-gray-200">
+    <div className="flex justify-between px-4 sm:px-6 py-2 border-t border-gray-200">
       <span
         className={`font-sans font-bold text-sm ${negative ? "text-red-500" : "text-[var(--color-orange)]"}`}
       >

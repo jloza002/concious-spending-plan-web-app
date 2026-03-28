@@ -20,7 +20,7 @@ export function TotalRow({ label, amount, variant = "default", hasActions = fals
         {label}
       </span>
       <div className="flex items-center gap-3">
-        <div className="w-36 shrink-0">
+        <div className="w-28 sm:w-36 shrink-0">
           <CurrencyInput
             value={amount}
             onChange={() => {}}

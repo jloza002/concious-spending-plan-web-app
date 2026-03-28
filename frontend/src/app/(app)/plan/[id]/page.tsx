@@ -107,7 +107,7 @@ export default function PlanPage({
         <span className={`text-xs text-gray-400 font-sans transition-opacity duration-150 ${isSaving ? "opacity-100" : "opacity-0"}`}>Saving...</span>
       </div>
 
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
         <NetWorthSection
           assets={plan.assets}
           investmentsNw={plan.investmentsNw}

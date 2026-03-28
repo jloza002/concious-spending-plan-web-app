@@ -24,7 +24,6 @@ export function LineItemRow({
   readOnly = false,
 }: LineItemRowProps) {
   const [label, setLabel] = useState(item.label);
-  const [isHovered, setIsHovered] = useState(false);
 
   const handleLabelBlur = useCallback(() => {
     if (label !== item.label && onLabelChange) {
@@ -34,9 +33,7 @@ export function LineItemRow({
 
   return (
     <div
-      className="flex items-center gap-3 px-4 py-2 bg-white border-b border-gray-100 group"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      className="flex items-center gap-2 sm:gap-3 px-4 py-2 bg-white border-b border-gray-100 group"
     >
       {/* Label */}
       <div className="flex-1 min-w-0">
@@ -58,7 +55,7 @@ export function LineItemRow({
       </div>
 
       {/* Amount */}
-      <div className="w-36 shrink-0">
+      <div className="w-28 sm:w-36 shrink-0">
         <CurrencyInput
           value={item.amount}
           onChange={(amount) => onAmountChange(item.id, amount)}
@@ -70,14 +67,14 @@ export function LineItemRow({
       {!readOnly && onDelete ? (
         <button
           onClick={() => onDelete(item.id)}
-          className={`shrink-0 w-6 h-6 flex items-center justify-center rounded text-gray-400
-            hover:text-red-500 hover:bg-red-50 transition-opacity ${isHovered ? "opacity-100" : "opacity-0"}`}
+          className="shrink-0 w-11 h-11 sm:w-8 sm:h-8 flex items-center justify-center rounded text-gray-400
+            hover:text-red-500 hover:bg-red-50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
           title="Remove item"
         >
           &times;
         </button>
       ) : !readOnly ? (
-        <div className="shrink-0 w-6 h-6" />
+        <div className="shrink-0 w-11 h-11 sm:w-6 sm:h-6" />
       ) : null}
     </div>
   );

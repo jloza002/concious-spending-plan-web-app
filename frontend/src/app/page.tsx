@@ -4,24 +4,24 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[var(--color-cream)] flex flex-col items-center justify-center px-4">
       <div className="max-w-xl text-center">
-        <h1 className="font-display text-5xl font-bold text-[var(--color-dark-teal)] mb-4">
+        <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold text-[var(--color-dark-teal)] mb-4">
           Conscious Spending Plan
         </h1>
-        <p className="text-lg text-gray-600 font-sans mb-8">
+        <p className="text-base sm:text-lg text-gray-600 font-sans mb-8">
           Take control of your money with the IWT method. Plan your fixed costs,
           investments, savings, and guilt-free spending — all in one place.
         </p>
-        <div className="flex gap-4 justify-center">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
           <Link
             href="/register"
-            className="inline-flex items-center px-6 py-3 bg-[var(--color-orange)] text-white
+            className="inline-flex items-center justify-center w-full sm:w-auto px-6 py-3 bg-[var(--color-orange)] text-white
               font-medium rounded-lg hover:opacity-90 transition-opacity font-sans"
           >
             Get Started Free
           </Link>
           <Link
             href="/login"
-            className="inline-flex items-center px-6 py-3 bg-[var(--color-dark-teal)] text-white
+            className="inline-flex items-center justify-center w-full sm:w-auto px-6 py-3 bg-[var(--color-dark-teal)] text-white
               font-medium rounded-lg hover:opacity-90 transition-opacity font-sans"
           >
             Sign In

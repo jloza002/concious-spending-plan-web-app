@@ -55,7 +55,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6 sm:mb-8">
         <h1 className="font-display text-2xl font-bold text-[var(--color-dark-teal)]">
           Your Spending Plans
         </h1>
@@ -67,6 +67,7 @@ export default function DashboardPage() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
           onMouseDown={(e) => { if (e.target === e.currentTarget) setShowCreate(false); }}
+          onTouchEnd={(e) => { if (e.target === e.currentTarget) setShowCreate(false); }}
         >
           <div className="bg-[var(--color-cream)] rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
             <div className="bg-[var(--color-dark-teal)] px-6 py-4 flex items-center justify-between">
@@ -75,7 +76,7 @@ export default function DashboardPage() {
               </h2>
               <button
                 onClick={() => setShowCreate(false)}
-                className="text-[var(--color-warm-beige)] opacity-70 hover:opacity-100 text-xl leading-none"
+                className="w-10 h-10 flex items-center justify-center -mr-2 text-[var(--color-warm-beige)] opacity-70 hover:opacity-100 text-xl leading-none"
               >
                 ✕
               </button>
@@ -125,6 +126,7 @@ export default function DashboardPage() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
           onMouseDown={(e) => { if (e.target === e.currentTarget) setDeleteId(null); }}
+          onTouchEnd={(e) => { if (e.target === e.currentTarget) setDeleteId(null); }}
         >
           <div className="bg-[var(--color-cream)] rounded-2xl shadow-xl w-full max-w-sm mx-4 overflow-hidden">
             <div className="bg-[var(--color-dark-teal)] px-6 py-4 flex items-center justify-between">
@@ -133,7 +135,7 @@ export default function DashboardPage() {
               </h2>
               <button
                 onClick={() => setDeleteId(null)}
-                className="text-[var(--color-warm-beige)] opacity-70 hover:opacity-100 text-xl leading-none"
+                className="w-10 h-10 flex items-center justify-center -mr-2 text-[var(--color-warm-beige)] opacity-70 hover:opacity-100 text-xl leading-none"
               >
                 ✕
               </button>
@@ -209,7 +211,7 @@ export default function DashboardPage() {
                 </span>
                 <button
                   onClick={() => setDeleteId(plan.id)}
-                  className="text-xs text-gray-400 hover:text-red-500 font-sans transition-colors"
+                  className="text-xs text-gray-400 hover:text-red-500 font-sans transition-colors -my-2 -mx-1 py-2 px-1"
                 >
                   Delete
                 </button>

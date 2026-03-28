@@ -35,9 +35,9 @@ function LoginForm() {
   }
 
   return (
-    <div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-lg">
+    <div className="w-full max-w-md p-5 sm:p-8 bg-white rounded-2xl shadow-lg">
       <div className="text-center mb-8">
-        <h1 className="font-display text-3xl font-bold text-[var(--color-dark-teal)]">
+        <h1 className="font-display text-2xl sm:text-3xl font-bold text-[var(--color-dark-teal)]">
           Conscious Spending Plan
         </h1>
         <p className="mt-2 text-sm text-gray-500 font-sans">
@@ -117,8 +117,8 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-cream)]">
-      <Suspense fallback={<div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-lg animate-pulse h-96" />}>
+    <div className="flex min-h-screen items-center justify-center bg-[var(--color-cream)] px-4">
+      <Suspense fallback={<div className="w-full max-w-md p-5 sm:p-8 bg-white rounded-2xl shadow-lg animate-pulse h-96" />}>
         <LoginForm />
       </Suspense>
     </div>

@@ -21,7 +21,7 @@ export function IncomeSection({
         <span className="text-sm font-sans text-gray-800">
           Gross monthly income
         </span>
-        <div className="w-36 shrink-0">
+        <div className="w-28 sm:w-36 shrink-0">
           <CurrencyInput
             value={grossMonthlyIncome}
             onChange={(val) => onFieldChange("grossMonthlyIncome", val)}
@@ -32,7 +32,7 @@ export function IncomeSection({
         <span className="text-sm font-sans font-bold text-[var(--color-orange)]">
           Net monthly income (post-tax, after deductions)
         </span>
-        <div className="w-36 shrink-0">
+        <div className="w-28 sm:w-36 shrink-0">
           <CurrencyInput
             value={netMonthlyIncome}
             onChange={(val) => onFieldChange("netMonthlyIncome", val)}
