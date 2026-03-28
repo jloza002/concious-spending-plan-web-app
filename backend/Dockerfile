@@ -17,7 +17,10 @@ RUN pnpm install --frozen-lockfile
 COPY shared/ shared/
 COPY backend/ backend/
 
-# Generate Prisma client and build
+# Build shared package first (backend depends on its compiled types)
+RUN pnpm --filter @csp/shared run build
+
+# Generate Prisma client and build backend
 RUN pnpm --filter @csp/backend run db:generate
 RUN pnpm --filter @csp/backend run build
 
