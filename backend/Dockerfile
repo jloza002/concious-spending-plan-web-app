@@ -50,4 +50,4 @@ RUN pnpm --filter @csp/backend run db:generate
 ENV NODE_ENV=production
 EXPOSE 4000
 
-CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy --schema=backend/prisma/schema.prisma && node backend/dist/server.js"]
+CMD ["sh", "-c", "pnpm --filter @csp/backend run db:deploy && node backend/dist/server.js"]
