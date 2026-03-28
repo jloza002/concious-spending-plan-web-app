@@ -23,6 +23,11 @@ model User {
   securityQuestion   String? @map("security_question") @db.VarChar(255)
   securityAnswerHash String? @map("security_answer_hash")
 
+  // Name fields
+  firstName     String?   @map("first_name") @db.VarChar(100)
+  middleInitial String?   @map("middle_initial") @db.VarChar(5)
+  lastName      String?   @map("last_name") @db.VarChar(100)
+
   // Profile fields
   phone         String?   @db.VarChar(50)
   bio           String?   @db.Text

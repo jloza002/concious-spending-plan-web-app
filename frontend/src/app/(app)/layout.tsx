@@ -51,9 +51,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
             {/* Right: User + Sign Out */}
             <div className="flex items-center gap-3">
-              <span className="text-sm text-white/70 font-sans hidden sm:block">
-                {session?.user?.name || session?.user?.email}
-              </span>
+              <Link
+                href="/profile"
+                className="text-sm text-white/70 hover:text-white font-sans hidden sm:block transition-colors"
+              >
+                {session?.user?.name?.split(" ")[0] || session?.user?.email}
+              </Link>
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
                 className="text-sm font-sans text-white/70 hover:text-white transition-colors py-2 px-1"

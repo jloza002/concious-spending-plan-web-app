@@ -10,6 +10,7 @@ import { transactionRoutes } from "./routes/transaction.routes.js";
 import { categoryMappingRoutes } from "./routes/category-mapping.routes.js";
 import { exportRoutes } from "./routes/export.routes.js";
 import { authRoutes } from "./routes/auth.routes.js";
+import { userRoutes } from "./routes/user.routes.js";
 import { apiV1Routes } from "./routes/api-v1/index.js";
 
 const app = express();
@@ -85,6 +86,7 @@ app.post("/auth/refresh", softRateLimiter);
 app.use("/auth", authRoutes);
 
 // ── Authenticated API routes ───────────────────────────────────────────────
+app.use("/users", userRoutes);
 app.use("/plans", planRoutes);
 app.use("/plans", lineItemRoutes);
 app.use("/plans", importRoutes);

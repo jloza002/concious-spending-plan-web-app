@@ -16,7 +16,9 @@ const SECURITY_QUESTIONS = [
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [middleInitial, setMiddleInitial] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [securityQuestion, setSecurityQuestion] = useState(SECURITY_QUESTIONS[0]);
@@ -33,7 +35,7 @@ export default function RegisterPage() {
       const res = await fetch("/api/backend/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, securityQuestion, securityAnswer }),
+        body: JSON.stringify({ firstName, middleInitial: middleInitial || undefined, lastName, email, password, securityQuestion, securityAnswer }),
       });
 
       const data = await res.json();
@@ -70,19 +72,54 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1 font-sans">
-              Name
-            </label>
-            <input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
-                focus:ring-2 focus:ring-[var(--color-orange)] focus:border-transparent font-sans"
-            />
+          {/* Name row */}
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1 font-sans">
+                First Name
+              </label>
+              <input
+                id="firstName"
+                type="text"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                required
+                autoComplete="given-name"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
+                  focus:ring-2 focus:ring-[var(--color-orange)] focus:border-transparent font-sans"
+              />
+            </div>
+            <div className="w-20">
+              <label htmlFor="middleInitial" className="block text-sm font-medium text-gray-700 mb-1 font-sans">
+                M.I.
+              </label>
+              <input
+                id="middleInitial"
+                type="text"
+                value={middleInitial}
+                onChange={(e) => setMiddleInitial(e.target.value.slice(0, 1).toUpperCase())}
+                maxLength={1}
+                placeholder="A"
+                autoComplete="additional-name"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
+                  focus:ring-2 focus:ring-[var(--color-orange)] focus:border-transparent font-sans text-center"
+              />
+            </div>
+            <div className="flex-1">
+              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1 font-sans">
+                Last Name
+              </label>
+              <input
+                id="lastName"
+                type="text"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                required
+                autoComplete="family-name"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
+                  focus:ring-2 focus:ring-[var(--color-orange)] focus:border-transparent font-sans"
+              />
+            </div>
           </div>
 
           <div>
@@ -95,6 +132,7 @@ export default function RegisterPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoComplete="email"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
                 focus:ring-2 focus:ring-[var(--color-orange)] focus:border-transparent font-sans"
             />

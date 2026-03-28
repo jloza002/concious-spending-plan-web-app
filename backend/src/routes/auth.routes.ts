@@ -37,7 +37,9 @@ const passwordSchema = z
   .refine((p) => /[^A-Za-z0-9]/.test(p), "Password must contain at least one special character");
 
 const registerSchema = z.object({
-  name: z.string().min(1).max(255),
+  firstName: z.string().min(1).max(100),
+  middleInitial: z.string().max(5).optional(),
+  lastName: z.string().min(1).max(100),
   email: z.string().email(),
   password: passwordSchema,
   securityQuestion: z.string().min(1).max(255),
@@ -93,9 +95,17 @@ authRoutes.post("/register", async (req, res, next) => {
     const passwordHash = await bcrypt.hash(data.password, BCRYPT_ROUNDS);
     const securityAnswerHash = await bcrypt.hash(data.securityAnswer.toLowerCase().trim(), BCRYPT_ROUNDS);
 
+    const mi = data.middleInitial?.trim();
+    const fullName = [data.firstName.trim(), mi ? `${mi}.` : null, data.lastName.trim()]
+      .filter(Boolean)
+      .join(" ");
+
     const user = await prisma.user.create({
       data: {
-        name: data.name,
+        firstName: data.firstName.trim(),
+        middleInitial: mi || null,
+        lastName: data.lastName.trim(),
+        name: fullName,
         email: data.email,
         passwordHash,
         emailVerified: new Date(), // Auto-verify — no email required
