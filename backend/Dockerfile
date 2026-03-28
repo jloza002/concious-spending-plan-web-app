@@ -31,13 +31,21 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-COPY --from=builder /app/package.json /app/pnpm-workspace.yaml ./
+# Copy workspace config
+COPY --from=builder /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml ./
 COPY --from=builder /app/shared/package.json shared/
 COPY --from=builder /app/backend/package.json backend/
-COPY --from=builder /app/node_modules ./node_modules
+
+# Install dependencies fresh so pnpm binaries (prisma, etc.) are correctly generated
+RUN pnpm install --frozen-lockfile
+
+# Copy compiled output from builder
 COPY --from=builder /app/shared/dist shared/dist
 COPY --from=builder /app/backend/dist backend/dist
 COPY --from=builder /app/backend/prisma backend/prisma
+
+# Regenerate Prisma client for this environment
+RUN pnpm --filter @csp/backend run db:generate
 
 ENV NODE_ENV=production
 EXPOSE 4000
