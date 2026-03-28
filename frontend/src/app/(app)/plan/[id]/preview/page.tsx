@@ -1,7 +1,9 @@
 "use client";
 
-import { use } from "react";
+import { use, useMemo } from "react";
+import { getSession } from "next-auth/react";
 import { usePlan } from "@/hooks/use-spending-plan";
+import { useTransactions } from "@/hooks/use-transactions";
 import { Button } from "@/components/ui/button";
 import { MISCELLANEOUS_RATE } from "@csp/shared";
 
@@ -17,9 +19,50 @@ export default function PreviewPage({
 }) {
   const { id: planId } = use(params);
   const { data: plan, isLoading } = usePlan(planId);
+  const { data: transactions } = useTransactions(planId);
+
+  // Same transaction-based fixed costs logic as the plan page
+  const fixedCategoryTotals = useMemo<Record<string, number>>(() => {
+    if (!transactions) return {};
+    const totals: Record<string, number> = {};
+    for (const t of transactions) {
+      if (
+        t.spendingCategory !== "fixed_costs" ||
+        !t.spendingSubcategory ||
+        t.isDuplicate ||
+        t.type === "Payment"
+      ) continue;
+      totals[t.spendingSubcategory] = (totals[t.spendingSubcategory] ?? 0) + (-t.amount);
+    }
+    return totals;
+  }, [transactions]);
+
+  const calcs = useMemo(() => {
+    if (!plan) return null;
+    const net = plan.netMonthlyIncome;
+    const fixedCostsSubtotal = Object.values(fixedCategoryTotals).reduce((s, v) => s + v, 0);
+    const miscellaneous = fixedCostsSubtotal * MISCELLANEOUS_RATE;
+    const fixedCostsTotal = fixedCostsSubtotal + miscellaneous;
+    const { investmentsTotal, savingsTotal } = plan.calculations;
+    const guiltFreeTotal = net - fixedCostsTotal - investmentsTotal - savingsTotal;
+    return {
+      ...plan.calculations,
+      fixedCostsSubtotal,
+      miscellaneous,
+      fixedCostsTotal,
+      fixedCostsPercentage: net > 0 ? fixedCostsTotal / net : 0,
+      guiltFreeTotal,
+      guiltFreePercentage: net > 0 ? guiltFreeTotal / net : 0,
+    };
+  }, [plan, fixedCategoryTotals]);
 
   async function handleDownload() {
-    const res = await fetch(`/api/backend/plans/${planId}/export`);
+    const session = await getSession();
+    const headers: HeadersInit = {};
+    if ((session as any)?.accessToken) {
+      headers["Authorization"] = `Bearer ${(session as any).accessToken}`;
+    }
+    const res = await fetch(`/api/backend/plans/${planId}/export`, { headers });
     if (!res.ok) return;
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -30,7 +73,7 @@ export default function PreviewPage({
     URL.revokeObjectURL(url);
   }
 
-  if (isLoading || !plan) {
+  if (isLoading || !plan || !calcs) {
     return (
       <div className="text-center py-12 text-gray-500 font-sans">
         Loading preview...
@@ -38,10 +81,9 @@ export default function PreviewPage({
     );
   }
 
-  const fc = plan.lineItems.filter((i) => i.section === "fixed_costs");
   const inv = plan.lineItems.filter((i) => i.section === "investments");
   const sav = plan.lineItems.filter((i) => i.section === "savings");
-  const calcs = plan.calculations;
+  const fcEntries = Object.entries(fixedCategoryTotals).sort(([a], [b]) => a.localeCompare(b));
   const fmt = (n: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -59,7 +101,7 @@ export default function PreviewPage({
       </div>
 
       {/* Percentage Breakdown Bar */}
-      <div className="mb-6 no-print">
+      <div className="mb-8 no-print">
         <div className="flex h-8 rounded-lg overflow-hidden shadow-sm">
           <div
             className="bg-[var(--color-dark-teal)] flex items-center justify-center text-white text-xs font-sans"
@@ -84,6 +126,25 @@ export default function PreviewPage({
             style={{ width: `${Math.max(calcs.guiltFreePercentage * 100, 0)}%` }}
           >
             {calcs.guiltFreePercentage > 0.05 && `Free ${pct(calcs.guiltFreePercentage)}`}
+          </div>
+        </div>
+        {/* Legend */}
+        <div className="flex items-center justify-end gap-5 mt-2 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-[var(--color-dark-teal)] shrink-0" />
+            <span className="text-xs font-sans text-gray-500">Fixed Costs</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-blue-500 shrink-0" />
+            <span className="text-xs font-sans text-gray-500">Investments</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-green-500 shrink-0" />
+            <span className="text-xs font-sans text-gray-500">Savings</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-[var(--color-orange)] shrink-0" />
+            <span className="text-xs font-sans text-gray-500">Guilt-Free Spending</span>
           </div>
         </div>
       </div>
@@ -119,9 +180,9 @@ export default function PreviewPage({
         </SectionBlock>
 
         {/* FIXED COSTS */}
-        <SectionBlock title={`FIXED COSTS (50-60%)`} percentage={pct(calcs.fixedCostsPercentage)}>
-          {fc.map((item) => (
-            <DataRow key={item.id} label={item.label} value={fmt(item.amount)} />
+        <SectionBlock title="FIXED COSTS (50-60%)" percentage={pct(calcs.fixedCostsPercentage)}>
+          {fcEntries.map(([label, amount]) => (
+            <DataRow key={label} label={label} value={fmt(amount)} />
           ))}
           <div className="flex justify-between px-6 py-2 text-gray-500 italic text-sm font-sans">
             <span>Miscellaneous (auto {Math.round(MISCELLANEOUS_RATE * 100)}%)</span>
@@ -173,7 +234,7 @@ function SectionBlock({
       <div className="flex items-center justify-between bg-[var(--color-dark-teal)] px-6 py-3">
         <span className="font-display text-white font-bold">{title}</span>
         {percentage && (
-          <span className="font-sans text-white font-bold">{percentage}</span>
+          <span className="font-sans text-[var(--color-orange)] font-bold">{percentage}</span>
         )}
       </div>
       {children}

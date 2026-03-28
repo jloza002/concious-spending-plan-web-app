@@ -14,29 +14,16 @@ interface SectionHeaderProps {
 export function SectionHeader({
   title,
   percentage,
-  minPercent,
-  maxPercent,
 }: SectionHeaderProps) {
-  const isInRange =
-    percentage !== undefined &&
-    minPercent !== undefined &&
-    maxPercent !== undefined &&
-    percentage >= minPercent &&
-    percentage <= maxPercent;
-
-  const percentColor =
-    percentage === undefined
-      ? "text-white"
-      : isInRange
-        ? "text-green-400"
-        : "text-[var(--color-orange)]";
+  const roundedPct = percentage !== undefined ? Math.round(percentage * 100) : 0;
+  const showPercentage = percentage !== undefined && roundedPct !== 0 && !isNaN(percentage);
 
   return (
     <div className="flex items-center justify-between bg-[var(--color-dark-teal)] px-4 py-3 rounded-t-lg">
       <h3 className="font-display text-white font-bold text-lg">{title}</h3>
-      {percentage !== undefined && (
-        <span className={`font-sans font-bold text-lg ${percentColor}`}>
-          {Math.round(percentage * 100)}%
+      {showPercentage && (
+        <span className="font-sans font-bold text-lg text-[var(--color-orange)]">
+          {roundedPct}%
         </span>
       )}
     </div>

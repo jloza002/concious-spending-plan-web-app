@@ -39,10 +39,11 @@ export function useCreatePlan() {
   });
 }
 
-/** Update plan top-level fields with debounce */
+/** Update plan top-level fields with debounce + optimistic cache update */
 export function useUpdatePlan(planId: string) {
   const queryClient = useQueryClient();
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pendingRef = useRef<UpdatePlanInput>({});
 
   const mutation = useMutation({
     mutationFn: (data: UpdatePlanInput) =>
@@ -54,12 +55,20 @@ export function useUpdatePlan(planId: string) {
 
   const debouncedUpdate = useCallback(
     (data: UpdatePlanInput) => {
+      // Apply field change optimistically so the input doesn't cause a layout jump
+      pendingRef.current = { ...pendingRef.current, ...data };
+      queryClient.setQueryData<SpendingPlan>(["plan", planId], (old) =>
+        old ? { ...old, ...pendingRef.current } : old
+      );
+
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
-        mutation.mutate(data);
+        const latest = pendingRef.current;
+        pendingRef.current = {};
+        mutation.mutate(latest);
       }, 500);
     },
-    [mutation]
+    [mutation, planId, queryClient]
   );
 
   return { ...mutation, debouncedUpdate };

@@ -49,6 +49,8 @@ export interface Transaction {
   memo: string | null;
   spendingCategory: string | null;
   spendingSubcategory: string | null;
+  isDuplicate: boolean;
+  isManual: boolean;
 }
 
 export interface TransactionImport {
@@ -74,7 +76,11 @@ export interface PlanSummary {
   month: number;
   year: number;
   netMonthlyIncome: number;
+  totalNetWorth: number;
   fixedCostsPercentage: number;
+  investmentsPercentage: number;
+  savingsPercentage: number;
+  guiltFreePercentage: number;
   guiltFreeTotal: number;
   updatedAt: string;
 }

@@ -2,6 +2,10 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import type { NextAuthConfig } from "next-auth";
 
+const BACKEND = process.env.BACKEND_URL || "http://localhost:4000";
+/** How many seconds before access token expiry to attempt a refresh */
+const REFRESH_BUFFER_SECONDS = 60;
+
 export const authConfig: NextAuthConfig = {
   providers: [
     Credentials({
@@ -13,18 +17,14 @@ export const authConfig: NextAuthConfig = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        // Call the backend to verify credentials
-        const res = await fetch(
-          `${process.env.BACKEND_URL || "http://localhost:4000"}/auth/login`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: credentials.email,
-              password: credentials.password,
-            }),
-          }
-        );
+        const res = await fetch(`${BACKEND}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: credentials.email,
+            password: credentials.password,
+          }),
+        });
 
         if (!res.ok) return null;
 
@@ -34,6 +34,9 @@ export const authConfig: NextAuthConfig = {
           email: user.email,
           name: user.name,
           accessToken: user.accessToken,
+          refreshToken: user.refreshToken,
+          // Decode expiry from the access token payload (avoid importing jwt on client)
+          accessTokenExpires: Date.now() + 55 * 60 * 1000, // ~55 min (token is 1h)
         };
       },
     }),
@@ -41,17 +44,30 @@ export const authConfig: NextAuthConfig = {
   session: { strategy: "jwt" },
   callbacks: {
     async jwt({ token, user }) {
+      // Initial sign-in — persist tokens from authorize()
       if (user) {
         token.sub = user.id;
         token.accessToken = (user as any).accessToken;
+        token.refreshToken = (user as any).refreshToken;
+        token.accessTokenExpires = (user as any).accessTokenExpires;
+        return token;
       }
-      return token;
+
+      // Access token still valid
+      const expiresAt = token.accessTokenExpires as number | undefined;
+      if (expiresAt && Date.now() < expiresAt - REFRESH_BUFFER_SECONDS * 1000) {
+        return token;
+      }
+
+      // Access token expired — attempt refresh
+      return await refreshAccessToken(token);
     },
     async session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
       }
       (session as any).accessToken = token.accessToken;
+      (session as any).error = token.error;
       return session;
     },
   },
@@ -60,5 +76,29 @@ export const authConfig: NextAuthConfig = {
   },
   secret: process.env.NEXTAUTH_SECRET,
 };
+
+async function refreshAccessToken(token: any) {
+  try {
+    const res = await fetch(`${BACKEND}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: token.refreshToken }),
+    });
+
+    if (!res.ok) throw new Error("Refresh failed");
+
+    const data = await res.json();
+    return {
+      ...token,
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      accessTokenExpires: Date.now() + 55 * 60 * 1000,
+      error: undefined,
+    };
+  } catch {
+    // Refresh failed — mark session as expired so UI can re-authenticate
+    return { ...token, error: "RefreshAccessTokenError" };
+  }
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);

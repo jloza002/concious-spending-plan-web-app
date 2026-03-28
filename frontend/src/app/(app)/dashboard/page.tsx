@@ -10,6 +10,10 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+const fmt = (n: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+const pct = (n: number) => `${Math.round(n * 100)}%`;
+
 export default function DashboardPage() {
   const { data: plans, isLoading } = usePlans();
   const createPlan = useCreatePlan();
@@ -17,10 +21,28 @@ export default function DashboardPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newMonth, setNewMonth] = useState(new Date().getMonth() + 1);
   const [newYear, setNewYear] = useState(new Date().getFullYear());
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   async function handleCreate() {
-    await createPlan.mutateAsync({ month: newMonth, year: newYear });
-    setShowCreate(false);
+    try {
+      await createPlan.mutateAsync({ month: newMonth, year: newYear });
+      setShowCreate(false);
+    } catch {
+      // error displayed via createPlan.error
+    }
+  }
+
+  function openModal() {
+    setNewMonth(new Date().getMonth() + 1);
+    setNewYear(new Date().getFullYear());
+    setShowCreate(true);
+  }
+
+  function confirmDelete() {
+    if (deleteId) {
+      deletePlan.mutate(deleteId);
+      setDeleteId(null);
+    }
   }
 
   if (isLoading) {
@@ -37,53 +59,104 @@ export default function DashboardPage() {
         <h1 className="font-display text-2xl font-bold text-[var(--color-dark-teal)]">
           Your Spending Plans
         </h1>
-        <Button onClick={() => setShowCreate(true)}>+ New Plan</Button>
+        <Button onClick={openModal}>+ New Plan</Button>
       </div>
 
-      {/* Create Plan Dialog */}
+      {/* Create Plan Modal */}
       {showCreate && (
-        <div className="mb-6 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
-          <h3 className="font-sans font-medium mb-3">Create New Plan</h3>
-          <div className="flex gap-3 items-end">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1 font-sans">
-                Month
-              </label>
-              <select
-                value={newMonth}
-                onChange={(e) => setNewMonth(Number(e.target.value))}
-                className="px-3 py-2 border border-gray-300 rounded-lg font-sans"
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setShowCreate(false); }}
+        >
+          <div className="bg-[var(--color-cream)] rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="bg-[var(--color-dark-teal)] px-6 py-4 flex items-center justify-between">
+              <h2 className="font-display text-lg font-bold text-[var(--color-warm-beige)]">
+                New Spending Plan
+              </h2>
+              <button
+                onClick={() => setShowCreate(false)}
+                className="text-[var(--color-warm-beige)] opacity-70 hover:opacity-100 text-xl leading-none"
               >
-                {MONTH_NAMES.map((name, i) => (
-                  <option key={i + 1} value={i + 1}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+                ✕
+              </button>
             </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1 font-sans">
-                Year
-              </label>
-              <input
-                type="number"
-                value={newYear}
-                onChange={(e) => setNewYear(Number(e.target.value))}
-                className="w-24 px-3 py-2 border border-gray-300 rounded-lg font-sans"
-              />
+            <div className="px-6 py-6 space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 font-sans">
+                  Month
+                </label>
+                <select
+                  value={newMonth}
+                  onChange={(e) => setNewMonth(Number(e.target.value))}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg font-sans text-sm focus:outline-none focus:border-[var(--color-orange)]"
+                >
+                  {MONTH_NAMES.map((name, i) => (
+                    <option key={i + 1} value={i + 1}>{name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 font-sans">
+                  Year
+                </label>
+                <input
+                  type="number"
+                  value={newYear}
+                  onChange={(e) => setNewYear(Number(e.target.value))}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg font-sans text-sm focus:outline-none focus:border-[var(--color-orange)]"
+                />
+              </div>
+              {createPlan.error && (
+                <p className="text-sm text-red-500 font-sans">{createPlan.error.message}</p>
+              )}
             </div>
-            <Button onClick={handleCreate} disabled={createPlan.isPending}>
-              {createPlan.isPending ? "Creating..." : "Create"}
-            </Button>
-            <Button variant="ghost" onClick={() => setShowCreate(false)}>
-              Cancel
-            </Button>
+            <div className="px-6 pb-6 flex gap-3 justify-end">
+              <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button onClick={handleCreate} disabled={createPlan.isPending}>
+                {createPlan.isPending ? "Creating..." : "Create Plan"}
+              </Button>
+            </div>
           </div>
-          {createPlan.error && (
-            <p className="mt-2 text-sm text-red-500 font-sans">
-              {createPlan.error.message}
-            </p>
-          )}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setDeleteId(null); }}
+        >
+          <div className="bg-[var(--color-cream)] rounded-2xl shadow-xl w-full max-w-sm mx-4 overflow-hidden">
+            <div className="bg-[var(--color-dark-teal)] px-6 py-4 flex items-center justify-between">
+              <h2 className="font-display text-lg font-bold text-[var(--color-warm-beige)]">
+                Delete Plan
+              </h2>
+              <button
+                onClick={() => setDeleteId(null)}
+                className="text-[var(--color-warm-beige)] opacity-70 hover:opacity-100 text-xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-6 py-6">
+              <p className="font-sans text-gray-700 text-sm">
+                Are you sure you want to delete this spending plan?
+              </p>
+              <p className="font-sans text-gray-700 text-sm mt-2">
+                This will permanently remove all transactions and data associated with it. This action cannot be undone.
+              </p>
+            </div>
+            <div className="px-6 pb-6 flex gap-3 justify-end">
+              <Button variant="ghost" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button
+                onClick={confirmDelete}
+                disabled={deletePlan.isPending}
+                className="bg-red-500 hover:bg-red-600 text-white"
+              >
+                {deletePlan.isPending ? "Deleting..." : "Delete Plan"}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -101,38 +174,42 @@ export default function DashboardPage() {
                 </h3>
                 <div className="mt-3 space-y-1 font-sans text-sm">
                   <div className="flex justify-between">
+                    <span className="text-gray-500">Net Worth</span>
+                    <span className="font-medium">{fmt(plan.totalNetWorth ?? 0)}</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-gray-500">Net Income</span>
-                    <span className="font-medium">
-                      ${plan.netMonthlyIncome.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                    </span>
+                    <span className="font-medium">{fmt(plan.netMonthlyIncome)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Fixed Costs</span>
-                    <span className="font-medium">
-                      {Math.round(plan.fixedCostsPercentage * 100)}%
-                    </span>
+                    <span className="font-medium">{pct(plan.fixedCostsPercentage ?? 0)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Investments</span>
+                    <span className="font-medium">{pct(plan.investmentsPercentage ?? 0)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Savings</span>
+                    <span className="font-medium">{pct(plan.savingsPercentage ?? 0)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Guilt-Free</span>
-                    <span
-                      className={`font-medium ${plan.guiltFreeTotal < 0 ? "text-red-500" : "text-green-600"}`}
-                    >
-                      ${plan.guiltFreeTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    <span className={`font-medium ${(plan.guiltFreeTotal ?? 0) < 0 ? "text-red-500" : "text-green-600"}`}>
+                      {pct(plan.guiltFreePercentage ?? 0)}
                     </span>
                   </div>
                 </div>
               </Link>
+
+              {/* Footer */}
               <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
                 <span className="text-xs text-gray-400 font-sans">
                   Updated {new Date(plan.updatedAt).toLocaleDateString()}
                 </span>
                 <button
-                  onClick={() => {
-                    if (confirm("Delete this plan?")) {
-                      deletePlan.mutate(plan.id);
-                    }
-                  }}
-                  className="text-xs text-gray-400 hover:text-red-500 font-sans"
+                  onClick={() => setDeleteId(plan.id)}
+                  className="text-xs text-gray-400 hover:text-red-500 font-sans transition-colors"
                 >
                   Delete
                 </button>
@@ -148,7 +225,7 @@ export default function DashboardPage() {
           <p className="text-gray-500 font-sans mb-6">
             Create your first Conscious Spending Plan to get started.
           </p>
-          <Button onClick={() => setShowCreate(true)} size="lg">
+          <Button onClick={openModal} size="lg">
             Create Your First Plan
           </Button>
         </div>

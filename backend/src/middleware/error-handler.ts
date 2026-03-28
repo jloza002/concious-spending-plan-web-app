@@ -28,14 +28,11 @@ export function errorHandler(
     return;
   }
 
-  // Unexpected errors
+  // Unexpected errors — never leak internals to the client
   console.error("Unhandled error:", err);
   res.status(500).json({
     error: "Internal Server Error",
-    message:
-      process.env.NODE_ENV === "production"
-        ? "An unexpected error occurred"
-        : err.message,
+    message: "An unexpected error occurred. Please try again later.",
   });
 }
 
