@@ -15,6 +15,9 @@ import { apiV1Routes } from "./routes/api-v1/index.js";
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// ── Trust proxy (required for correct IP behind Koyeb/Railway reverse proxy) ──
+app.set("trust proxy", 1);
+
 // ── Security headers ───────────────────────────────────────────────────────
 app.use(
   helmet({
@@ -43,11 +46,9 @@ const ALLOWED_ORIGINS: string[] = (process.env.CORS_ORIGIN || "http://localhost:
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow server-to-server calls (no Origin header) only in non-production
+      // Allow server-to-server calls (no Origin header) — these come from
+      // Vercel/Koyeb server-side functions proxying requests; JWT auth protects all endpoints.
       if (!origin) {
-        if (process.env.NODE_ENV === "production") {
-          return callback(new Error("CORS: missing Origin header"), false);
-        }
         return callback(null, true);
       }
       if (ALLOWED_ORIGINS.includes(origin)) {
@@ -80,7 +81,6 @@ app.post("/auth/register", authRateLimiter);
 app.post("/auth/login", authRateLimiter);
 app.post("/auth/forgot-password", authRateLimiter);
 app.post("/auth/reset-password", authRateLimiter);
-app.post("/auth/resend-verification", softRateLimiter);
 app.post("/auth/refresh", softRateLimiter);
 app.use("/auth", authRoutes);
 
