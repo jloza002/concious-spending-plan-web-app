@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { Transaction, CsvTransaction } from "@csp/shared";
+import type { Transaction, CsvTransaction, ManualTransactionInput } from "@csp/shared";
 
 /** Fetch transactions for a plan */
 export function useTransactions(planId: string) {
@@ -25,7 +25,7 @@ export function useImportTransactions(planId: string) {
   });
 }
 
-/** Update a single transaction's category */
+/** Update a single transaction's category — optimistic update, no refetch */
 export function useAssignCategory() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -42,8 +42,80 @@ export function useAssignCategory() {
         spendingCategory,
         spendingSubcategory,
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    onMutate: async ({ transactionId, spendingCategory, spendingSubcategory }) => {
+      await queryClient.cancelQueries({ queryKey: ["transactions"] });
+      const snapshots = queryClient.getQueriesData<Transaction[]>({ queryKey: ["transactions"] });
+      queryClient.setQueriesData<Transaction[]>(
+        { queryKey: ["transactions"] },
+        (old) => old?.map((t) =>
+          t.id === transactionId ? { ...t, spendingCategory, spendingSubcategory } : t
+        )
+      );
+      return { snapshots };
+    },
+    onError: (_err, _vars, context) => {
+      context?.snapshots.forEach(([key, data]) => queryClient.setQueryData(key, data));
+    },
+  });
+}
+
+/** Delete a single transaction — optimistic update, no refetch */
+export function useDeleteTransaction(planId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (transactionId: string) =>
+      api.delete(`/transactions/${transactionId}`),
+    onMutate: async (transactionId) => {
+      await queryClient.cancelQueries({ queryKey: ["transactions", planId] });
+      const previous = queryClient.getQueryData<Transaction[]>(["transactions", planId]);
+      queryClient.setQueryData<Transaction[]>(
+        ["transactions", planId],
+        (old) => old?.filter((t) => t.id !== transactionId)
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["transactions", planId], context.previous);
+      }
+    },
+  });
+}
+
+/** Add a manual transaction */
+export function useAddTransaction(planId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: ManualTransactionInput) =>
+      api.post<Transaction>(`/plans/${planId}/transaction`, data),
+    onSuccess: (newTransaction) => {
+      queryClient.setQueryData<Transaction[]>(
+        ["transactions", planId],
+        (old) => (old ? [newTransaction, ...old] : [newTransaction])
+      );
+    },
+  });
+}
+
+/** Update a transaction's type — optimistic update, no refetch */
+export function useUpdateTransactionType(planId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ transactionId, type }: { transactionId: string; type: string }) =>
+      api.patch(`/transactions/${transactionId}/type`, { type }),
+    onMutate: async ({ transactionId, type }) => {
+      await queryClient.cancelQueries({ queryKey: ["transactions", planId] });
+      const previous = queryClient.getQueryData<Transaction[]>(["transactions", planId]);
+      queryClient.setQueryData<Transaction[]>(
+        ["transactions", planId],
+        (old) => old?.map((t) => (t.id === transactionId ? { ...t, type: type as Transaction["type"] } : t))
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["transactions", planId], context.previous);
+      }
     },
   });
 }

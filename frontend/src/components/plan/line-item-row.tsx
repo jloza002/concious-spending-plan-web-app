@@ -66,8 +66,8 @@ export function LineItemRow({
         />
       </div>
 
-      {/* Delete button */}
-      {!readOnly && onDelete && (
+      {/* Delete button — always reserves space so amount column stays aligned */}
+      {!readOnly && onDelete ? (
         <button
           onClick={() => onDelete(item.id)}
           className={`shrink-0 w-6 h-6 flex items-center justify-center rounded text-gray-400
@@ -76,7 +76,9 @@ export function LineItemRow({
         >
           &times;
         </button>
-      )}
+      ) : !readOnly ? (
+        <div className="shrink-0 w-6 h-6" />
+      ) : null}
     </div>
   );
 }

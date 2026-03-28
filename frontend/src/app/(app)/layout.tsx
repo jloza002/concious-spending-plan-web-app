@@ -34,10 +34,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-[var(--color-cream)]">
+      <div className="h-screen bg-[var(--color-cream)] flex flex-col">
         {/* Top Navigation */}
-        <nav className="bg-[var(--color-dark-teal)] text-white no-print">
-          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <nav className="bg-[var(--color-dark-teal)] text-white no-print shrink-0">
+          <div className="w-full px-6 lg:px-10 py-3 flex items-center justify-between">
             {/* Left: Logo + Nav Links */}
             <div className="flex items-center gap-2">
               <Link
@@ -65,7 +65,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Content */}
-        <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>
+        <main className="flex-1 w-full px-6 lg:px-10 py-8 overflow-y-auto">{children}</main>
       </div>
     </AuthGuard>
   );

@@ -53,7 +53,7 @@ export default function PlanLayout({
   return (
     <div>
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm font-sans text-gray-500 mb-4">
+      <div className="flex items-center gap-2 text-sm font-sans text-gray-500 mb-4 no-print">
         <Link href="/dashboard" className="hover:text-gray-800 transition-colors">
           Dashboard
         </Link>
@@ -68,7 +68,7 @@ export default function PlanLayout({
             Plan
           </PlanTab>
           <PlanTab href={`/plan/${planId}/import`}>
-            Import CSV
+            Transactions
           </PlanTab>
           <PlanTab href={`/plan/${planId}/preview`}>
             Preview &amp; Export

@@ -5,6 +5,11 @@ import {
   DEFAULT_SAVINGS,
   MISCELLANEOUS_RATE,
 } from "@csp/shared";
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
 import type { PlanCalculations, SpendingPlan } from "@csp/shared";
 import { AppError } from "../middleware/error-handler.js";
 
@@ -24,7 +29,7 @@ export async function createPlan(
   });
   if (existing) {
     throw new AppError(
-      `A spending plan for ${month}/${year} already exists`,
+      `A spending plan for ${MONTH_NAMES[month - 1]} ${year} already exists`,
       409
     );
   }
@@ -120,21 +125,53 @@ export async function getPlan(
 export async function listPlans(userId: string) {
   const plans = await prisma.spendingPlan.findMany({
     where: { userId },
-    include: {
-      lineItems: true,
-    },
+    include: { lineItems: true },
     orderBy: [{ year: "desc" }, { month: "desc" }],
   });
 
-  return plans.map((plan: (typeof plans)[number]) => {
-    const calcs = computeCalculations(plan);
+  const planIds = plans.map((p) => p.id);
+
+  // Aggregate transaction-based fixed costs per plan
+  const txns = await prisma.transaction.findMany({
+    where: {
+      import: { spendingPlanId: { in: planIds } },
+      spendingCategory: "fixed_costs",
+      isDuplicate: false,
+      NOT: { type: "Payment" },
+    },
+    select: { amount: true, import: { select: { spendingPlanId: true } } },
+  });
+
+  const fcSubtotalByPlan: Record<string, number> = {};
+  for (const t of txns) {
+    const pid = t.import.spendingPlanId;
+    fcSubtotalByPlan[pid] = (fcSubtotalByPlan[pid] ?? 0) + -Number(t.amount);
+  }
+
+  return plans.map((plan) => {
+    const net = Number(plan.netMonthlyIncome);
+    const safePercent = (v: number) => (net > 0 ? v / net : 0);
+
+    const fcSubtotal = fcSubtotalByPlan[plan.id] ?? 0;
+    const fcTotal = fcSubtotal + fcSubtotal * MISCELLANEOUS_RATE;
+
+    const investmentItems = plan.lineItems.filter((i) => i.section === "investments");
+    const savingsItems = plan.lineItems.filter((i) => i.section === "savings");
+    const investmentsTotal = investmentItems.reduce((s, i) => s + Number(i.amount), 0);
+    const savingsTotal = savingsItems.reduce((s, i) => s + Number(i.amount), 0);
+    const guiltFreeTotal = net - fcTotal - investmentsTotal - savingsTotal;
+
     return {
       id: plan.id,
       month: plan.month,
       year: plan.year,
-      netMonthlyIncome: Number(plan.netMonthlyIncome),
-      fixedCostsPercentage: calcs.fixedCostsPercentage,
-      guiltFreeTotal: calcs.guiltFreeTotal,
+      netMonthlyIncome: net,
+      totalNetWorth: Number(plan.assets) + Number(plan.investmentsNw) + Number(plan.savingsNw) - Number(plan.debt),
+      fixedCostsPercentage: safePercent(fcTotal),
+      investmentsPercentage: safePercent(investmentsTotal),
+      savingsPercentage: safePercent(savingsTotal),
+      guiltFreePercentage: safePercent(guiltFreeTotal),
+      guiltFreeTotal,
       updatedAt: plan.updatedAt.toISOString(),
     };
   });
