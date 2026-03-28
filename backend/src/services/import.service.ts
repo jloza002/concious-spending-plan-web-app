@@ -208,32 +208,34 @@ export async function updateTransactionType(
   });
 }
 
-/** Levenshtein distance between two strings */
-function levenshtein(a: string, b: string): number {
-  const m = a.length, n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
-    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
-  );
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] =
-        a[i - 1] === b[j - 1]
-          ? dp[i - 1][j - 1]
-          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-    }
+/** Split a normalized description into meaningful word tokens (length ≥ 2). */
+function tokenize(s: string): Set<string> {
+  return new Set(s.split(" ").filter((t) => t.length >= 2));
+}
+
+/**
+ * Jaccard similarity between two tokenized descriptions.
+ * Score = |intersection| / |union|, range 0–1.
+ *
+ * Preferred over character-level Levenshtein for merchant names because
+ * word overlap is a stronger signal than edit distance — "WHOLE FOODS MARKET"
+ * and "WHOLE FOODS" share 2/3 tokens (0.67) even though they differ by 6 chars.
+ */
+function jaccardSimilarity(a: string, b: string): number {
+  const tokA = tokenize(a);
+  const tokB = tokenize(b);
+  if (tokA.size === 0 && tokB.size === 0) return 1;
+  if (tokA.size === 0 || tokB.size === 0) return 0;
+  let intersection = 0;
+  for (const t of tokA) {
+    if (tokB.has(t)) intersection++;
   }
-  return dp[m][n];
+  return intersection / (tokA.size + tokB.size - intersection);
 }
 
-/** Similarity score 0–1 between two normalized strings */
-function similarity(a: string, b: string): number {
-  if (a === b) return 1;
-  const maxLen = Math.max(a.length, b.length);
-  if (maxLen === 0) return 1;
-  return 1 - levenshtein(a, b) / maxLen;
-}
-
-const FUZZY_THRESHOLD = 0.75;
+// Jaccard scores are naturally lower than Levenshtein for partial matches,
+// so 0.5 is the right threshold: requires ≥1 shared token out of 2 unique tokens.
+const FUZZY_THRESHOLD = 0.5;
 
 /**
  * Auto-categorize transactions using the user's category memory.
@@ -275,8 +277,8 @@ export async function autoCategorize(
       } else if (keyword.length >= 3 && keyword.includes(norm)) {
         score = 0.85;
       } else {
-        // 3. Fuzzy similarity
-        score = similarity(norm, keyword);
+        // 3. Jaccard token overlap
+        score = jaccardSimilarity(norm, keyword);
       }
 
       if (score > bestScore) {
