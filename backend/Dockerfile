@@ -38,7 +38,6 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/shared/dist shared/dist
 COPY --from=builder /app/backend/dist backend/dist
 COPY --from=builder /app/backend/prisma backend/prisma
-COPY --from=builder /app/backend/node_modules/.prisma backend/node_modules/.prisma
 
 ENV NODE_ENV=production
 EXPOSE 4000
