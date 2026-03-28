@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
 
 type Step = "email" | "answer" | "success";
 
@@ -163,14 +164,12 @@ export default function ForgotPasswordPage() {
               <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 mb-1 font-sans">
                 New Password
               </label>
-              <input
+              <PasswordInput
                 id="new-password"
-                type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
-                  focus:ring-2 focus:ring-[var(--color-orange)] focus:border-transparent font-sans"
+                autoComplete="new-password"
               />
               <p className="mt-1 text-xs text-gray-400 font-sans">
                 Min 8 chars, uppercase, lowercase, number, and special character
@@ -180,14 +179,12 @@ export default function ForgotPasswordPage() {
               <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-1 font-sans">
                 Confirm Password
               </label>
-              <input
+              <PasswordInput
                 id="confirm-password"
-                type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
-                  focus:ring-2 focus:ring-[var(--color-orange)] focus:border-transparent font-sans"
+                autoComplete="new-password"
               />
             </div>
             <Button type="submit" className="w-full" size="lg" disabled={isLoading}>

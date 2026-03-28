@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
 
 const SECURITY_QUESTIONS = [
   "What was the name of your first pet?",
@@ -103,15 +104,13 @@ export default function RegisterPage() {
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1 font-sans">
               Password
             </label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
-                focus:ring-2 focus:ring-[var(--color-orange)] focus:border-transparent font-sans"
+              autoComplete="new-password"
             />
             <p className="mt-1 text-xs text-gray-400 font-sans">
               Min 8 chars, uppercase, lowercase, number, and special character
