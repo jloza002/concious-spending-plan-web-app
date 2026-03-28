@@ -46,7 +46,7 @@ export function InvestmentsSection({
       ))}
 
       <AddItemButton onClick={onAddItem} />
-      <TotalRow label="INVESTMENTS TOTAL" amount={calculations.investmentsTotal} />
+      <TotalRow label="INVESTMENTS TOTAL" amount={calculations.investmentsTotal} hasActions />
     </div>
   );
 }

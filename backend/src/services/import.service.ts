@@ -5,7 +5,7 @@ import { normalizeDescription } from "../utils/normalize.js";
 
 /**
  * Import parsed CSV transactions into a spending plan.
- * Returns the created import with transactions.
+ * Aggregates with existing transactions and marks duplicates.
  */
 export async function importTransactions(
   planId: string,
@@ -20,27 +20,101 @@ export async function importTransactions(
     throw new AppError("Spending plan not found", 404);
   }
 
+  // Build a set of existing transaction keys to detect duplicates
+  const existing = await prisma.transaction.findMany({
+    where: { import: { spendingPlanId: planId } },
+    select: { transactionDate: true, description: true, amount: true },
+  });
+  const existingKeys = new Set(
+    existing.map(
+      (t) => `${t.transactionDate.toISOString().split("T")[0]}|${t.description}|${Number(t.amount)}`
+    )
+  );
+
+  // Filter out any rows with unparseable dates before inserting
+  const validTransactions = transactions.filter((t) => {
+    const d = new Date(t.transactionDate);
+    return !isNaN(d.getTime());
+  });
+  if (validTransactions.length === 0) {
+    throw new AppError("No valid transactions found — all rows had invalid dates", 400);
+  }
+
   const importRecord = await prisma.transactionImport.create({
     data: {
       spendingPlanId: planId,
       transactions: {
-        create: transactions.map((t) => ({
-          transactionDate: new Date(t.transactionDate),
-          postDate: new Date(t.postDate),
-          description: t.description,
-          originalCategory: t.category || null,
-          type: t.type,
-          amount: t.amount,
-          memo: t.memo || null,
-        })),
+        create: validTransactions.map((t) => {
+          const key = `${new Date(t.transactionDate).toISOString().split("T")[0]}|${t.description}|${t.amount}`;
+          const postDate = new Date(t.postDate);
+          return {
+            transactionDate: new Date(t.transactionDate),
+            postDate: isNaN(postDate.getTime()) ? new Date(t.transactionDate) : postDate,
+            description: t.description,
+            originalCategory: t.category || null,
+            type: t.type,
+            amount: t.amount,
+            memo: t.memo || null,
+            isDuplicate: existingKeys.has(key),
+          };
+        }),
       },
     },
-    include: {
-      transactions: true,
-    },
+    include: { transactions: true },
   });
 
   return importRecord;
+}
+
+/** Delete a single transaction */
+export async function deleteTransaction(transactionId: string, userId: string) {
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+    include: { import: { include: { spendingPlan: true } } },
+  });
+  if (!transaction || transaction.import.spendingPlan.userId !== userId) {
+    throw new AppError("Transaction not found", 404);
+  }
+  await prisma.transaction.delete({ where: { id: transactionId } });
+}
+
+/** Add a single manual transaction to a plan */
+export async function addManualTransaction(
+  planId: string,
+  userId: string,
+  data: {
+    transactionDate: string;
+    description: string;
+    type: string;
+    amount: number;
+    memo?: string;
+  }
+) {
+  const plan = await prisma.spendingPlan.findFirst({
+    where: { id: planId, userId },
+  });
+  if (!plan) throw new AppError("Spending plan not found", 404);
+
+  const date = new Date(data.transactionDate);
+  const importRecord = await prisma.transactionImport.create({
+    data: {
+      spendingPlanId: planId,
+      transactions: {
+        create: [{
+          transactionDate: date,
+          postDate: date,
+          description: data.description,
+          type: data.type,
+          amount: data.amount,
+          memo: data.memo || null,
+          isManual: true,
+        }],
+      },
+    },
+    include: { transactions: true },
+  });
+
+  return importRecord.transactions[0];
 }
 
 /** Get all transactions for a spending plan */
@@ -78,6 +152,8 @@ export async function getTransactions(planId: string, userId: string) {
       memo: t.memo,
       spendingCategory: t.spendingCategory,
       spendingSubcategory: t.spendingSubcategory,
+      isDuplicate: t.isDuplicate,
+      isManual: t.isManual,
     }))
   );
 }
@@ -111,32 +187,55 @@ export async function assignCategory(
   });
 }
 
-/** Levenshtein distance between two strings */
-function levenshtein(a: string, b: string): number {
-  const m = a.length, n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
-    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
-  );
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] =
-        a[i - 1] === b[j - 1]
-          ? dp[i - 1][j - 1]
-          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-    }
+/** Update a transaction's type */
+export async function updateTransactionType(
+  transactionId: string,
+  userId: string,
+  type: "Sale" | "Return" | "Payment" | "Adjustment" | "Debit" | "Credit"
+) {
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+    include: { import: { include: { spendingPlan: true } } },
+  });
+
+  if (!transaction || transaction.import.spendingPlan.userId !== userId) {
+    throw new AppError("Transaction not found", 404);
   }
-  return dp[m][n];
+
+  return prisma.transaction.update({
+    where: { id: transactionId },
+    data: { type },
+  });
 }
 
-/** Similarity score 0–1 between two normalized strings */
-function similarity(a: string, b: string): number {
-  if (a === b) return 1;
-  const maxLen = Math.max(a.length, b.length);
-  if (maxLen === 0) return 1;
-  return 1 - levenshtein(a, b) / maxLen;
+/** Split a normalized description into meaningful word tokens (length ≥ 2). */
+function tokenize(s: string): Set<string> {
+  return new Set(s.split(" ").filter((t) => t.length >= 2));
 }
 
-const FUZZY_THRESHOLD = 0.75;
+/**
+ * Jaccard similarity between two tokenized descriptions.
+ * Score = |intersection| / |union|, range 0–1.
+ *
+ * Preferred over character-level Levenshtein for merchant names because
+ * word overlap is a stronger signal than edit distance — "WHOLE FOODS MARKET"
+ * and "WHOLE FOODS" share 2/3 tokens (0.67) even though they differ by 6 chars.
+ */
+function jaccardSimilarity(a: string, b: string): number {
+  const tokA = tokenize(a);
+  const tokB = tokenize(b);
+  if (tokA.size === 0 && tokB.size === 0) return 1;
+  if (tokA.size === 0 || tokB.size === 0) return 0;
+  let intersection = 0;
+  for (const t of tokA) {
+    if (tokB.has(t)) intersection++;
+  }
+  return intersection / (tokA.size + tokB.size - intersection);
+}
+
+// Jaccard scores are naturally lower than Levenshtein for partial matches,
+// so 0.5 is the right threshold: requires ≥1 shared token out of 2 unique tokens.
+const FUZZY_THRESHOLD = 0.5;
 
 /**
  * Auto-categorize transactions using the user's category memory.
@@ -178,8 +277,8 @@ export async function autoCategorize(
       } else if (keyword.length >= 3 && keyword.includes(norm)) {
         score = 0.85;
       } else {
-        // 3. Fuzzy similarity
-        score = similarity(norm, keyword);
+        // 3. Jaccard token overlap
+        score = jaccardSimilarity(norm, keyword);
       }
 
       if (score > bestScore) {
