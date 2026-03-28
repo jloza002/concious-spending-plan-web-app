@@ -58,12 +58,12 @@ lineItemRoutes.put("/:id/items/:itemId", async (req, res, next) => {
     const userId = req.user!.sub;
     const data = updateLineItemSchema.parse(req.body);
 
-    // Verify ownership
+    // Verify ownership and plan membership
     const item = await prisma.planLineItem.findUnique({
       where: { id: itemId },
       include: { spendingPlan: true },
     });
-    if (!item || item.spendingPlan.userId !== userId) {
+    if (!item || item.spendingPlanId !== planId || item.spendingPlan.userId !== userId) {
       throw new AppError("Line item not found", 404);
     }
 
@@ -89,14 +89,14 @@ lineItemRoutes.delete("/:id/items/:itemId", async (req, res, next) => {
       where: { id: itemId },
       include: { spendingPlan: true },
     });
-    if (!item || item.spendingPlan.userId !== userId) {
+    if (!item || item.spendingPlanId !== planId || item.spendingPlan.userId !== userId) {
       throw new AppError("Line item not found", 404);
     }
 
     // Clear transaction references to this deleted category
     await prisma.transaction.updateMany({
       where: {
-        import: { spendingPlanId: planId },
+        import: { spendingPlanId: item.spendingPlanId },
         spendingCategory: item.section,
         spendingSubcategory: item.label,
       },
@@ -126,8 +126,8 @@ lineItemRoutes.patch("/:id/items/reorder", async (req, res, next) => {
 
     await prisma.$transaction(
       items.map((item) =>
-        prisma.planLineItem.update({
-          where: { id: item.id },
+        prisma.planLineItem.updateMany({
+          where: { id: item.id, spendingPlanId: planId },
           data: { sortOrder: item.sortOrder },
         })
       )
