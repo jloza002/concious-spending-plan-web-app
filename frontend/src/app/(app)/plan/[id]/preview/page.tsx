@@ -41,7 +41,7 @@ export default function PreviewPage({
     if (!plan) return null;
     const net = plan.netMonthlyIncome;
     const fixedCostsSubtotal = Object.values(fixedCategoryTotals).reduce((s, v) => s + v, 0);
-    const miscellaneous = fixedCostsSubtotal * MISCELLANEOUS_RATE;
+    const miscellaneous = plan.includeMiscellaneous ? fixedCostsSubtotal * MISCELLANEOUS_RATE : 0;
     const fixedCostsTotal = fixedCostsSubtotal + miscellaneous;
     const { investmentsTotal, savingsTotal } = plan.calculations;
     const guiltFreeTotal = net - fixedCostsTotal - investmentsTotal - savingsTotal;
@@ -184,10 +184,12 @@ export default function PreviewPage({
           {fcEntries.map(([label, amount]) => (
             <DataRow key={label} label={label} value={fmt(amount)} />
           ))}
-          <div className="flex justify-between px-4 sm:px-6 py-2 text-gray-500 italic text-sm font-sans">
-            <span>Miscellaneous (auto {Math.round(MISCELLANEOUS_RATE * 100)}%)</span>
-            <span>{fmt(calcs.miscellaneous)}</span>
-          </div>
+          {plan.includeMiscellaneous && (
+            <div className="flex justify-between px-4 sm:px-6 py-2 text-gray-500 italic text-sm font-sans">
+              <span>Miscellaneous (auto {Math.round(MISCELLANEOUS_RATE * 100)}%)</span>
+              <span>{fmt(calcs.miscellaneous)}</span>
+            </div>
+          )}
           <TotalBlock label="FIXED COSTS TOTAL" value={fmt(calcs.fixedCostsTotal)} />
         </SectionBlock>
 

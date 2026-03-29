@@ -153,7 +153,7 @@ export async function listPlans(userId: string) {
     const safePercent = (v: number) => (net > 0 ? v / net : 0);
 
     const fcSubtotal = fcSubtotalByPlan[plan.id] ?? 0;
-    const fcTotal = fcSubtotal + fcSubtotal * MISCELLANEOUS_RATE;
+    const fcTotal = fcSubtotal + (plan.includeMiscellaneous ? fcSubtotal * MISCELLANEOUS_RATE : 0);
 
     const investmentItems = plan.lineItems.filter((i) => i.section === "investments");
     const savingsItems = plan.lineItems.filter((i) => i.section === "savings");
@@ -239,6 +239,7 @@ interface PlanWithLineItems {
   debt: any;
   grossMonthlyIncome: any;
   netMonthlyIncome: any;
+  includeMiscellaneous: boolean;
   createdAt: Date;
   updatedAt: Date;
   lineItems: Array<{
@@ -255,6 +256,7 @@ interface PlanWithLineItems {
 
 function computeCalculations(plan: PlanWithLineItems): PlanCalculations {
   const netIncome = Number(plan.netMonthlyIncome);
+  const includeMiscellaneous = plan.includeMiscellaneous;
 
   const fixedCostItems = plan.lineItems.filter(
     (i) => i.section === "fixed_costs"
@@ -268,7 +270,7 @@ function computeCalculations(plan: PlanWithLineItems): PlanCalculations {
     (sum, i) => sum + Number(i.amount),
     0
   );
-  const miscellaneous = fixedCostsSubtotal * MISCELLANEOUS_RATE;
+  const miscellaneous = includeMiscellaneous ? fixedCostsSubtotal * MISCELLANEOUS_RATE : 0;
   const fixedCostsTotal = fixedCostsSubtotal + miscellaneous;
 
   const investmentsTotal = investmentItems.reduce(
@@ -315,6 +317,7 @@ function formatPlanResponse(plan: PlanWithLineItems): SpendingPlan {
     debt: Number(plan.debt),
     grossMonthlyIncome: Number(plan.grossMonthlyIncome),
     netMonthlyIncome: Number(plan.netMonthlyIncome),
+    includeMiscellaneous: plan.includeMiscellaneous,
     lineItems: plan.lineItems.map((item) => ({
       id: item.id,
       spendingPlanId: item.spendingPlanId,

@@ -47,7 +47,7 @@ export default function PlanPage({
     if (!plan) return null;
     const net = plan.netMonthlyIncome;
     const fixedCostsSubtotal = Object.values(fixedCategoryTotals).reduce((s, v) => s + v, 0);
-    const miscellaneous = fixedCostsSubtotal * MISCELLANEOUS_RATE;
+    const miscellaneous = plan.includeMiscellaneous ? fixedCostsSubtotal * MISCELLANEOUS_RATE : 0;
     const fixedCostsTotal = fixedCostsSubtotal + miscellaneous;
     const { investmentsTotal, savingsTotal } = plan.calculations;
     const guiltFreeTotal = net - fixedCostsTotal - investmentsTotal - savingsTotal;
@@ -126,6 +126,8 @@ export default function PlanPage({
         <FixedCostsSection
           categoryTotals={fixedCategoryTotals}
           calculations={calculations}
+          includeMiscellaneous={plan.includeMiscellaneous}
+          onDeleteMiscellaneous={() => debouncedUpdate({ includeMiscellaneous: false })}
         />
 
         <InvestmentsSection

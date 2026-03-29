@@ -17,6 +17,9 @@ export interface SpendingPlan {
   grossMonthlyIncome: number;
   netMonthlyIncome: number;
 
+  // Settings
+  includeMiscellaneous: boolean;
+
   // Line items grouped by section
   lineItems: PlanLineItem[];
 

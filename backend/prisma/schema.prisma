@@ -154,6 +154,8 @@ model SpendingPlan {
   grossMonthlyIncome Decimal @default(0) @map("gross_monthly_income") @db.Decimal(12, 2)
   netMonthlyIncome   Decimal @default(0) @map("net_monthly_income") @db.Decimal(12, 2)
 
+  includeMiscellaneous Boolean @default(true) @map("include_miscellaneous")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
