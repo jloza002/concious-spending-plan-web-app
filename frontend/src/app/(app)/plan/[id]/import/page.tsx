@@ -1,15 +1,17 @@
 "use client";
 
-import { use, useState, useRef, useEffect } from "react";
+import { use, useState, useMemo, useRef, useEffect } from "react";
 import Papa from "papaparse";
 import { usePlan } from "@/hooks/use-spending-plan";
 import { useAddLineItem, useDeleteLineItem } from "@/hooks/use-line-items";
 import {
   useTransactions,
+  useDeletedTransactions,
   useImportTransactions,
   useAssignCategory,
   useAutoCategorize,
   useDeleteTransaction,
+  useRestoreTransaction,
   useAddTransaction,
   useUpdateTransactionType,
 } from "@/hooks/use-transactions";
@@ -135,7 +137,7 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete }: 
       </button>
 
       {open && (
-        <div className={`absolute z-30 left-0 w-52 bg-white border border-gray-200 rounded-lg shadow-xl py-1 max-h-64 overflow-y-auto ${dropUp ? "bottom-full mb-1" : "mt-1"}`}>
+        <div className={`absolute z-30 left-0 w-52 bg-white border border-gray-200 rounded-lg shadow-xl py-1 max-h-64 overflow-y-auto pr-1 ${dropUp ? "bottom-full mb-1" : "mt-1"}`} style={{ scrollbarGutter: "stable" }}>
           <button
             type="button"
             onClick={() => { onSelect(transaction, ""); setOpen(false); }}
@@ -159,7 +161,7 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete }: 
                       type="button"
                       onClick={(e) => { e.stopPropagation(); handleDelete(opt.itemId); }}
                       disabled={deletingId === opt.itemId}
-                      className="shrink-0 px-2 py-1.5 text-[10px] text-gray-300 hover:text-red-400 disabled:opacity-40 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="shrink-0 px-2 py-1.5 text-[10px] text-gray-300 hover:text-red-400 disabled:opacity-40"
                       title="Delete category"
                     >
                       ✕
@@ -611,12 +613,46 @@ export default function TransactionsPage({
   const assignCategory = useAssignCategory();
   const autoCategorize = useAutoCategorize(planId);
   const deleteTransaction = useDeleteTransaction(planId);
+  const restoreTransaction = useRestoreTransaction(planId);
+  const { data: deletedTransactions } = useDeletedTransactions(planId);
   const addTransaction = useAddTransaction(planId);
   const updateType = useUpdateTransactionType(planId);
   const addLineItem = useAddLineItem(planId);
   const deleteLineItem = useDeleteLineItem(planId);
   const [showImport, setShowImport] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
+
+  // Filter state
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterKeyword, setFilterKeyword] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+
+  const hasFilters = filterCategory || filterKeyword || filterDateFrom || filterDateTo;
+
+  const filteredTransactions = useMemo(() => {
+    if (!transactions) return [];
+    let result = transactions;
+    if (filterCategory) {
+      if (filterCategory === "uncategorized") {
+        result = result.filter((t) => !t.spendingCategory);
+      } else {
+        result = result.filter((t) => t.spendingCategory === filterCategory);
+      }
+    }
+    if (filterKeyword) {
+      const kw = filterKeyword.toLowerCase();
+      result = result.filter((t) => t.description.toLowerCase().includes(kw));
+    }
+    if (filterDateFrom) {
+      result = result.filter((t) => t.transactionDate >= filterDateFrom);
+    }
+    if (filterDateTo) {
+      result = result.filter((t) => t.transactionDate <= filterDateTo);
+    }
+    return result;
+  }, [transactions, filterCategory, filterKeyword, filterDateFrom, filterDateTo]);
 
   const categoryOptions: CategoryOption[] = plan
     ? plan.lineItems
@@ -716,6 +752,67 @@ export default function TransactionsPage({
         </div>
       </div>
 
+      {/* Filter Bar */}
+      {transactions && transactions.length > 0 && (
+        <div className="flex flex-wrap items-end gap-3 bg-white rounded-xl p-3 shadow-sm border border-gray-100">
+          <div className="flex-1 min-w-[140px]">
+            <label className="block text-[10px] font-medium text-gray-500 mb-1 font-sans uppercase tracking-wide">Search</label>
+            <input
+              type="text"
+              value={filterKeyword}
+              onChange={(e) => setFilterKeyword(e.target.value)}
+              placeholder="Description..."
+              className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-sans focus:outline-none focus:border-[var(--color-orange)] bg-white"
+            />
+          </div>
+          <div className="min-w-[130px]">
+            <label className="block text-[10px] font-medium text-gray-500 mb-1 font-sans uppercase tracking-wide">Category</label>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-sans focus:outline-none focus:border-[var(--color-orange)] bg-white"
+            >
+              <option value="">All</option>
+              <option value="uncategorized">Uncategorized</option>
+              <option value="fixed_costs">Fixed Costs</option>
+              <option value="investments">Investments</option>
+              <option value="savings">Savings</option>
+            </select>
+          </div>
+          <div className="min-w-[120px]">
+            <label className="block text-[10px] font-medium text-gray-500 mb-1 font-sans uppercase tracking-wide">From</label>
+            <input
+              type="date"
+              value={filterDateFrom}
+              onChange={(e) => setFilterDateFrom(e.target.value)}
+              className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-sans focus:outline-none focus:border-[var(--color-orange)] bg-white"
+            />
+          </div>
+          <div className="min-w-[120px]">
+            <label className="block text-[10px] font-medium text-gray-500 mb-1 font-sans uppercase tracking-wide">To</label>
+            <input
+              type="date"
+              value={filterDateTo}
+              onChange={(e) => setFilterDateTo(e.target.value)}
+              className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-sans focus:outline-none focus:border-[var(--color-orange)] bg-white"
+            />
+          </div>
+          {hasFilters && (
+            <button
+              onClick={() => { setFilterCategory(""); setFilterKeyword(""); setFilterDateFrom(""); setFilterDateTo(""); }}
+              className="text-xs text-[var(--color-orange)] hover:underline font-sans font-medium py-1.5"
+            >
+              Clear
+            </button>
+          )}
+          {hasFilters && (
+            <span className="text-xs text-gray-400 font-sans py-1.5">
+              {filteredTransactions.length} of {transactions.length}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Content */}
       {isLoading ? (
         <div className="text-center py-16 text-gray-400 font-sans text-sm">Loading transactions…</div>
@@ -748,7 +845,7 @@ export default function TransactionsPage({
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((t, i) => (
+                {filteredTransactions.map((t, i) => (
                   <tr
                     key={t.id}
                     className={`border-t border-gray-100 transition-colors hover:bg-[#F5EEE4]/60 group ${
@@ -808,6 +905,53 @@ export default function TransactionsPage({
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Deleted Transactions */}
+      {deletedTransactions && deletedTransactions.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+          <button
+            onClick={() => setShowDeleted((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-sans font-medium text-gray-500 hover:bg-gray-50 transition-colors"
+          >
+            <span>Deleted Transactions ({deletedTransactions.length})</span>
+            <span className="text-xs">{showDeleted ? "\u25B2" : "\u25BC"}</span>
+          </button>
+          {showDeleted && (
+            <div className="border-t border-gray-100">
+              <table className="w-full text-sm font-sans">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="text-left px-4 py-2 text-gray-500 text-xs font-semibold">Date</th>
+                    <th className="text-left px-4 py-2 text-gray-500 text-xs font-semibold">Description</th>
+                    <th className="text-right px-4 py-2 text-gray-500 text-xs font-semibold">Amount</th>
+                    <th className="w-20"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deletedTransactions.map((t, i) => (
+                    <tr key={t.id} className={`border-t border-gray-50 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}>
+                      <td className="px-4 py-2 text-xs text-gray-400 whitespace-nowrap">{t.transactionDate}</td>
+                      <td className="px-4 py-2 text-xs text-gray-400 truncate max-w-xs">{t.description}</td>
+                      <td className="px-4 py-2 text-xs text-right tabular-nums text-gray-400">
+                        ${Math.abs(Number(t.amount)).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          onClick={() => restoreTransaction.mutate(t.id)}
+                          disabled={restoreTransaction.isPending}
+                          className="text-xs text-[var(--color-orange)] hover:underline font-medium disabled:opacity-40"
+                        >
+                          Restore
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

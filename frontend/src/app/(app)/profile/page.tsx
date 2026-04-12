@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
+import { PasswordCriteria } from "@/components/ui/password-criteria";
 import { api } from "@/lib/api-client";
 
 interface ProfileData {
@@ -236,9 +237,7 @@ export default function ProfilePage() {
               required
               autoComplete="new-password"
             />
-            <p className="mt-1 text-xs text-gray-400 font-sans">
-              Min 8 chars, uppercase, lowercase, number, and special character
-            </p>
+            <PasswordCriteria password={newPassword} />
           </div>
 
           <div>

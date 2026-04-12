@@ -19,6 +19,7 @@ export const updatePlanSchema = z.object({
   netMonthlyIncome: z.number().optional(),
   // Settings
   includeMiscellaneous: z.boolean().optional(),
+  notes: z.string().optional(),
 });
 
 /** Schema for creating/updating a line item */

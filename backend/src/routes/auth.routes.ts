@@ -12,7 +12,7 @@ export const authRoutes = Router();
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const BCRYPT_ROUNDS = 12;
+const BCRYPT_ROUNDS = 10;
 const ACCESS_TOKEN_EXPIRY = "1h";
 const REFRESH_TOKEN_EXPIRY_DAYS = 30;
 
@@ -236,10 +236,12 @@ authRoutes.post("/forgot-password", async (req, res, next) => {
       select: { securityQuestion: true },
     });
 
-    // Return generic response if user not found to prevent email enumeration
-    if (!user || !user.securityQuestion) {
-      res.json({ question: null, message: "No security question found for this account." });
-      return;
+    if (!user) {
+      throw new AppError("No account found with this email address.", 404);
+    }
+
+    if (!user.securityQuestion) {
+      throw new AppError("This account does not have a security question set up. Please contact support.", 400);
     }
 
     res.json({ question: user.securityQuestion });

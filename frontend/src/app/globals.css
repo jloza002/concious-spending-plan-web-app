@@ -31,6 +31,11 @@ body {
   color: var(--color-black);
 }
 
+/* Thin scrollbars that don't overlap content */
+* {
+  scrollbar-width: thin;
+}
+
 /* Currency input - hide spinners */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {

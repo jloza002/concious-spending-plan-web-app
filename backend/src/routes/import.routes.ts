@@ -36,6 +36,19 @@ importRoutes.get("/:id/transactions", async (req, res, next) => {
   }
 });
 
+/** GET /plans/:id/transactions/deleted - Get soft-deleted transactions */
+importRoutes.get("/:id/transactions/deleted", async (req, res, next) => {
+  try {
+    const transactions = await importService.getDeletedTransactions(
+      req.params.id,
+      req.user!.sub
+    );
+    res.json(transactions);
+  } catch (err) {
+    next(err);
+  }
+});
+
 /** POST /plans/:id/transaction - Add a manual transaction */
 importRoutes.post("/:id/transaction", async (req, res, next) => {
   try {

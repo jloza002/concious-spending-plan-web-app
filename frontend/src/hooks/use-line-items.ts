@@ -83,6 +83,18 @@ export function useUpdateLineItem(planId: string) {
   return { ...mutation, debouncedUpdate };
 }
 
+/** Reorder line items */
+export function useReorderLineItems(planId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (items: { id: string; sortOrder: number }[]) =>
+      api.patch<SpendingPlan>(`/plans/${planId}/items/reorder`, { items }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["plan", planId], data);
+    },
+  });
+}
+
 /** Delete a line item */
 export function useDeleteLineItem(planId: string) {
   const queryClient = useQueryClient();

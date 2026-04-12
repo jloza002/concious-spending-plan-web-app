@@ -29,6 +29,16 @@ transactionRoutes.delete("/:id", async (req, res, next) => {
   }
 });
 
+/** PATCH /transactions/:id/restore - Restore a soft-deleted transaction */
+transactionRoutes.patch("/:id/restore", async (req, res, next) => {
+  try {
+    await importService.restoreTransaction(req.params.id, req.user!.sub);
+    res.json({ message: "Transaction restored" });
+  } catch (err) {
+    next(err);
+  }
+});
+
 /** PUT /transactions/:id - Update transaction category assignment */
 transactionRoutes.put("/:id", async (req, res, next) => {
   try {

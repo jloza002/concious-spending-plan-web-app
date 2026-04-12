@@ -240,6 +240,7 @@ interface PlanWithLineItems {
   grossMonthlyIncome: any;
   netMonthlyIncome: any;
   includeMiscellaneous: boolean;
+  notes: string | null;
   createdAt: Date;
   updatedAt: Date;
   lineItems: Array<{
@@ -318,6 +319,7 @@ function formatPlanResponse(plan: PlanWithLineItems): SpendingPlan {
     grossMonthlyIncome: Number(plan.grossMonthlyIncome),
     netMonthlyIncome: Number(plan.netMonthlyIncome),
     includeMiscellaneous: plan.includeMiscellaneous,
+    notes: plan.notes ?? null,
     lineItems: plan.lineItems.map((item) => ({
       id: item.id,
       spendingPlanId: item.spendingPlanId,

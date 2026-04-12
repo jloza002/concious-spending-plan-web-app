@@ -9,7 +9,7 @@ export const userRoutes = Router();
 
 userRoutes.use(requireAuth);
 
-const BCRYPT_ROUNDS = 12;
+const BCRYPT_ROUNDS = 10;
 
 const passwordSchema = z
   .string()

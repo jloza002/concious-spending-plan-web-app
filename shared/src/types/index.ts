@@ -19,6 +19,7 @@ export interface SpendingPlan {
 
   // Settings
   includeMiscellaneous: boolean;
+  notes: string | null;
 
   // Line items grouped by section
   lineItems: PlanLineItem[];

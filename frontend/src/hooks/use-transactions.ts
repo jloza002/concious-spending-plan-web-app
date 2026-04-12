@@ -79,6 +79,31 @@ export function useDeleteTransaction(planId: string) {
         queryClient.setQueryData(["transactions", planId], context.previous);
       }
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions", planId, "deleted"] });
+    },
+  });
+}
+
+/** Fetch soft-deleted transactions for a plan */
+export function useDeletedTransactions(planId: string) {
+  return useQuery<Transaction[]>({
+    queryKey: ["transactions", planId, "deleted"],
+    queryFn: () => api.get(`/plans/${planId}/transactions/deleted`),
+    enabled: !!planId,
+  });
+}
+
+/** Restore a soft-deleted transaction */
+export function useRestoreTransaction(planId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (transactionId: string) =>
+      api.patch(`/transactions/${transactionId}/restore`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions", planId] });
+      queryClient.invalidateQueries({ queryKey: ["transactions", planId, "deleted"] });
+    },
   });
 }
 

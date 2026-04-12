@@ -66,7 +66,7 @@ export async function importTransactions(
   return importRecord;
 }
 
-/** Delete a single transaction */
+/** Soft-delete a single transaction */
 export async function deleteTransaction(transactionId: string, userId: string) {
   const transaction = await prisma.transaction.findUnique({
     where: { id: transactionId },
@@ -75,7 +75,25 @@ export async function deleteTransaction(transactionId: string, userId: string) {
   if (!transaction || transaction.import.spendingPlan.userId !== userId) {
     throw new AppError("Transaction not found", 404);
   }
-  await prisma.transaction.delete({ where: { id: transactionId } });
+  await prisma.transaction.update({
+    where: { id: transactionId },
+    data: { deletedAt: new Date() },
+  });
+}
+
+/** Restore a soft-deleted transaction */
+export async function restoreTransaction(transactionId: string, userId: string) {
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+    include: { import: { include: { spendingPlan: true } } },
+  });
+  if (!transaction || transaction.import.spendingPlan.userId !== userId) {
+    throw new AppError("Transaction not found", 404);
+  }
+  await prisma.transaction.update({
+    where: { id: transactionId },
+    data: { deletedAt: null },
+  });
 }
 
 /** Add a single manual transaction to a plan */
@@ -130,6 +148,7 @@ export async function getTransactions(planId: string, userId: string) {
     where: { spendingPlanId: planId },
     include: {
       transactions: {
+        where: { deletedAt: null },
         orderBy: { transactionDate: "desc" },
       },
     },
@@ -154,6 +173,48 @@ export async function getTransactions(planId: string, userId: string) {
       spendingSubcategory: t.spendingSubcategory,
       isDuplicate: t.isDuplicate,
       isManual: t.isManual,
+    }))
+  );
+}
+
+/** Get soft-deleted transactions for a spending plan */
+export async function getDeletedTransactions(planId: string, userId: string) {
+  const plan = await prisma.spendingPlan.findFirst({
+    where: { id: planId, userId },
+  });
+  if (!plan) {
+    throw new AppError("Spending plan not found", 404);
+  }
+
+  const imports = await prisma.transactionImport.findMany({
+    where: { spendingPlanId: planId },
+    include: {
+      transactions: {
+        where: { deletedAt: { not: null } },
+        orderBy: { deletedAt: "desc" },
+      },
+    },
+  });
+
+  type ImportWithTx = (typeof imports)[number];
+  type Tx = ImportWithTx["transactions"][number];
+
+  return imports.flatMap((imp: ImportWithTx) =>
+    imp.transactions.map((t: Tx) => ({
+      id: t.id,
+      importId: t.importId,
+      transactionDate: t.transactionDate.toISOString().split("T")[0],
+      postDate: t.postDate.toISOString().split("T")[0],
+      description: t.description,
+      originalCategory: t.originalCategory,
+      type: t.type,
+      amount: Number(t.amount),
+      memo: t.memo,
+      spendingCategory: t.spendingCategory,
+      spendingSubcategory: t.spendingSubcategory,
+      isDuplicate: t.isDuplicate,
+      isManual: t.isManual,
+      deletedAt: t.deletedAt?.toISOString() ?? null,
     }))
   );
 }

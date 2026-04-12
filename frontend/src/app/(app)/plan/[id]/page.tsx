@@ -2,7 +2,7 @@
 
 import { use, useMemo } from "react";
 import { usePlan, useUpdatePlan } from "@/hooks/use-spending-plan";
-import { useUpdateLineItem, useAddLineItem, useDeleteLineItem } from "@/hooks/use-line-items";
+import { useUpdateLineItem, useAddLineItem, useDeleteLineItem, useReorderLineItems } from "@/hooks/use-line-items";
 import { useTransactions } from "@/hooks/use-transactions";
 import { NetWorthSection } from "@/components/plan/net-worth-section";
 import { IncomeSection } from "@/components/plan/income-section";
@@ -10,6 +10,7 @@ import { FixedCostsSection } from "@/components/plan/fixed-costs-section";
 import { InvestmentsSection } from "@/components/plan/investments-section";
 import { SavingsSection } from "@/components/plan/savings-section";
 import { GuiltFreeSection } from "@/components/plan/guilt-free-section";
+import { NotesSection } from "@/components/plan/notes-section";
 import { MISCELLANEOUS_RATE } from "@csp/shared";
 import Link from "next/link";
 
@@ -24,6 +25,7 @@ export default function PlanPage({
   const { debouncedUpdate: updateItem } = useUpdateLineItem(planId);
   const addItem = useAddLineItem(planId);
   const deleteItem = useDeleteLineItem(planId);
+  const reorderItems = useReorderLineItems(planId);
   const { data: transactions } = useTransactions(planId);
 
   // Aggregate transaction amounts by fixed_costs subcategory
@@ -101,6 +103,10 @@ export default function PlanPage({
     deleteItem.mutate(id);
   }
 
+  function handleReorder(items: { id: string; sortOrder: number }[]) {
+    reorderItems.mutate(items);
+  }
+
   return (
     <div>
       <div className="text-right mb-2">
@@ -137,6 +143,7 @@ export default function PlanPage({
           onLabelChange={handleLabelChange}
           onAddItem={() => handleAddItem("investments")}
           onDeleteItem={handleDeleteItem}
+          onReorder={handleReorder}
         />
 
         <SavingsSection
@@ -146,9 +153,15 @@ export default function PlanPage({
           onLabelChange={handleLabelChange}
           onAddItem={() => handleAddItem("savings")}
           onDeleteItem={handleDeleteItem}
+          onReorder={handleReorder}
         />
 
         <GuiltFreeSection calculations={calculations} />
+
+        <NotesSection
+          notes={plan.notes ?? ""}
+          onNotesChange={(notes) => debouncedUpdate({ notes })}
+        />
       </div>
     </div>
   );

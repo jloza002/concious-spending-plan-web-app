@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
+import { PasswordCriteria } from "@/components/ui/password-criteria";
 
 type Step = "email" | "answer" | "success";
 
@@ -30,18 +31,25 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
-      if (!res.ok || !data.question) {
-        setError("No account found with that email, or no security question set.");
+      if (!res.ok) {
+        setError(data.message || "Something went wrong. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (!data.question) {
+        setError("No account found with that email address.");
         setIsLoading(false);
         return;
       }
 
       setSecurityQuestion(data.question);
       setStep("answer");
-    } catch {
-      setError("An unexpected error occurred. Please try again.");
+    } catch (err) {
+      console.error("Forgot password error:", err);
+      setError("Could not reach the server. Please check your connection and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -85,8 +93,9 @@ export default function ForgotPasswordPage() {
         const data = await res.json().catch(() => ({}));
         setError(data.message || "Incorrect answer. Please try again.");
       }
-    } catch {
-      setError("An unexpected error occurred. Please try again.");
+    } catch (err) {
+      console.error("Reset password error:", err);
+      setError("Could not reach the server. Please check your connection and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -171,9 +180,7 @@ export default function ForgotPasswordPage() {
                 required
                 autoComplete="new-password"
               />
-              <p className="mt-1 text-xs text-gray-400 font-sans">
-                Min 8 chars, uppercase, lowercase, number, and special character
-              </p>
+              <PasswordCriteria password={newPassword} />
             </div>
             <div>
               <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-1 font-sans">
