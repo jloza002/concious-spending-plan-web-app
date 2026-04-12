@@ -145,107 +145,111 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
       </button>
 
       {open && (
-        <div className={`absolute z-30 left-0 w-52 bg-white border border-gray-200 rounded-lg shadow-xl py-1 max-h-64 overflow-y-auto pr-1 ${dropUp ? "bottom-full mb-1" : "mt-1"}`} style={{ scrollbarGutter: "stable" }}>
-          <button
-            type="button"
-            onClick={() => { onSelect(transaction, ""); setOpen(false); }}
-            className="w-full text-left text-xs px-3 py-1.5 hover:bg-[#F5EEE4] font-sans text-gray-400"
-          >
-            Uncategorized
-          </button>
+        <div className={`absolute z-30 left-0 w-56 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden ${dropUp ? "bottom-full mb-1" : "mt-1"}`}>
+          {/* Scrollable category list */}
+          <div className="max-h-56 overflow-y-auto" style={{ scrollbarGutter: "stable" }}>
+            <button
+              type="button"
+              onClick={() => { onSelect(transaction, ""); setOpen(false); }}
+              className="w-full text-left text-xs px-3 py-1.5 hover:bg-[#F5EEE4] font-sans text-gray-400"
+            >
+              Uncategorized
+            </button>
 
-          {categories.length > 0 && (
-            <div>
-              {categories.map((opt) => (
-                <div key={opt.value} className="flex items-center hover:bg-[#F5EEE4] px-2 py-1">
-                  {editMode && renamingId === opt.itemId ? (
-                    <form
-                      className="flex items-center gap-1 flex-1"
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        const trimmed = renameValue.trim();
-                        if (trimmed && trimmed !== opt.label) {
-                          setSaving(true);
-                          await onRename(opt.itemId, opt.label, trimmed);
-                          setSaving(false);
-                        }
-                        setRenamingId(null);
+            {categories.length > 0 && categories.map((opt) => (
+              <div key={opt.value} className="flex items-center hover:bg-[#F5EEE4]">
+                {editMode && renamingId === opt.itemId ? (
+                  <form
+                    className="flex items-center gap-1 flex-1 px-2 py-1"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const trimmed = renameValue.trim();
+                      if (trimmed && trimmed !== opt.label) {
+                        setSaving(true);
+                        await onRename(opt.itemId, opt.label, trimmed);
+                        setSaving(false);
+                      }
+                      setRenamingId(null);
+                    }}
+                  >
+                    <input
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Escape") setRenamingId(null); }}
+                      className="flex-1 min-w-0 text-xs border border-[var(--color-orange)] rounded px-1.5 py-0.5 font-sans focus:outline-none bg-white"
+                      autoFocus
+                      disabled={saving}
+                    />
+                    <button type="submit" disabled={saving || !renameValue.trim()} className="text-xs text-[var(--color-orange)] hover:opacity-70 disabled:opacity-40 shrink-0 font-medium">
+                      {saving ? "…" : "Save"}
+                    </button>
+                    <button type="button" onClick={() => setRenamingId(null)} className="text-xs text-gray-400 hover:text-gray-600 shrink-0">✕</button>
+                  </form>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (editMode) { setRenamingId(opt.itemId); setRenameValue(opt.label); }
+                        else { onSelect(transaction, opt.value); setOpen(false); }
                       }}
+                      className="flex-1 text-left text-xs px-3 py-1.5 font-sans truncate"
                     >
-                      <input
-                        value={renameValue}
-                        onChange={(e) => setRenameValue(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Escape") setRenamingId(null); }}
-                        className="flex-1 min-w-0 text-xs border border-[var(--color-orange)] rounded px-1.5 py-0.5 font-sans focus:outline-none bg-white"
-                        autoFocus
-                        disabled={saving}
-                      />
-                      <button type="submit" disabled={saving || !renameValue.trim()} className="text-xs text-[var(--color-orange)] hover:opacity-70 disabled:opacity-40 shrink-0 font-medium">
-                        {saving ? "…" : "Save"}
-                      </button>
-                      <button type="button" onClick={() => setRenamingId(null)} className="text-xs text-gray-400 hover:text-gray-600 shrink-0">✕</button>
-                    </form>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (editMode) {
-                            setRenamingId(opt.itemId);
-                            setRenameValue(opt.label);
-                          } else {
-                            onSelect(transaction, opt.value);
-                            setOpen(false);
-                          }
-                        }}
-                        className={`flex-1 text-left text-xs py-0.5 font-sans truncate ${editMode ? "hover:text-[var(--color-orange)]" : ""}`}
-                        title={editMode ? "Click to rename" : undefined}
-                      >
-                        {opt.label}
-                      </button>
-                      {editMode && (
+                      {opt.label}
+                    </button>
+                    {editMode && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => { setRenamingId(opt.itemId); setRenameValue(opt.label); }}
+                          className="shrink-0 px-1.5 py-1.5 text-gray-300 hover:text-[var(--color-orange)]"
+                          title="Rename"
+                        >
+                          ✎
+                        </button>
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); handleDelete(opt.itemId); }}
                           disabled={deletingId === opt.itemId}
-                          className="shrink-0 px-1 text-[10px] text-gray-300 hover:text-red-400 disabled:opacity-40"
-                          title="Delete category"
+                          className="shrink-0 px-1.5 py-1.5 text-[10px] text-gray-300 hover:text-red-400 disabled:opacity-40"
+                          title="Delete"
                         >
                           ✕
                         </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
 
-          <div className="border-t border-gray-100 mt-1 pt-1">
+          {/* Fixed footer — always visible regardless of scroll */}
+          <div className="border-t border-gray-100">
             {editMode ? (
-              <>
+              <div className="flex">
                 <button
                   type="button"
                   onClick={() => { setOpen(false); setIsAdding(true); }}
-                  className="w-full text-left text-xs px-3 py-1.5 hover:bg-[#F5EEE4] font-sans text-[var(--color-orange)]"
+                  className="flex-1 text-left text-xs px-3 py-2 hover:bg-[#F5EEE4] font-sans text-[var(--color-orange)]"
                 >
-                  ＋ Add category
+                  ＋ Add
                 </button>
                 <button
                   type="button"
-                  onClick={() => setEditMode(false)}
-                  className="w-full text-left text-xs px-3 py-1.5 hover:bg-[#F5EEE4] font-sans text-gray-500"
+                  onClick={() => { setEditMode(false); setRenamingId(null); }}
+                  className="text-xs px-3 py-2 hover:bg-[#F5EEE4] font-sans text-gray-500 border-l border-gray-100"
                 >
                   Done
                 </button>
-              </>
+              </div>
             ) : (
               <button
                 type="button"
                 onClick={() => setEditMode(true)}
-                className="w-full text-left text-xs px-3 py-1.5 hover:bg-[#F5EEE4] font-sans text-gray-500"
+                className="w-full text-left text-xs px-3 py-2 hover:bg-[#F5EEE4] font-sans text-gray-500 flex items-center gap-1.5"
               >
-                Edit categories
+                <span>✎</span> Edit categories
               </button>
             )}
           </div>
