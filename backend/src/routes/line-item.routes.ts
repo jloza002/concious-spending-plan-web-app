@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { lineItemSchema, updateLineItemSchema, reorderItemsSchema } from "@csp/shared";
 import { prisma } from "../db/client.js";
@@ -104,6 +105,45 @@ lineItemRoutes.delete("/:id/items/:itemId", async (req, res, next) => {
     });
 
     await prisma.planLineItem.delete({ where: { id: itemId } });
+
+    const updatedPlan = await planService.getPlan(planId, userId);
+    res.json(updatedPlan);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** PATCH /plans/:id/items/:itemId/rename - Rename a line item and update all referencing transactions */
+lineItemRoutes.patch("/:id/items/:itemId/rename", async (req, res, next) => {
+  try {
+    const { id: planId, itemId } = req.params;
+    const userId = req.user!.sub;
+    const { newLabel } = z.object({ newLabel: z.string().min(1).max(255) }).parse(req.body);
+
+    const item = await prisma.planLineItem.findUnique({
+      where: { id: itemId },
+      include: { spendingPlan: true },
+    });
+    if (!item || item.spendingPlanId !== planId || item.spendingPlan.userId !== userId) {
+      throw new AppError("Line item not found", 404);
+    }
+
+    const oldLabel = item.label;
+    if (oldLabel !== newLabel) {
+      await prisma.$transaction([
+        prisma.planLineItem.update({
+          where: { id: itemId },
+          data: { label: newLabel },
+        }),
+        prisma.transaction.updateMany({
+          where: {
+            import: { spendingPlanId: planId },
+            spendingSubcategory: oldLabel,
+          },
+          data: { spendingSubcategory: newLabel },
+        }),
+      ]);
+    }
 
     const updatedPlan = await planService.getPlan(planId, userId);
     res.json(updatedPlan);

@@ -3,7 +3,7 @@
 import { use, useState, useMemo, useRef, useEffect } from "react";
 import Papa from "papaparse";
 import { usePlan } from "@/hooks/use-spending-plan";
-import { useAddLineItem, useDeleteLineItem } from "@/hooks/use-line-items";
+import { useAddLineItem, useDeleteLineItem, useRenameCategory } from "@/hooks/use-line-items";
 import {
   useTransactions,
   useDeletedTransactions,
@@ -40,9 +40,10 @@ interface CategorySelectProps {
   onSelect: (transaction: Transaction, value: string) => void;
   onAdd: (transaction: Transaction, label: string) => Promise<void>;
   onDelete: (itemId: string) => Promise<void>;
+  onRename: (itemId: string, oldLabel: string, newLabel: string) => Promise<void>;
 }
 
-function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete }: CategorySelectProps) {
+function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, onRename }: CategorySelectProps) {
   const [open, setOpen] = useState(false);
   const [dropUp, setDropUp] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -50,6 +51,8 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete }: 
   const [newLabel, setNewLabel] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -59,6 +62,7 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete }: 
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false);
         setEditMode(false);
+        setRenamingId(null);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -70,7 +74,7 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete }: 
       const rect = buttonRef.current.getBoundingClientRect();
       setDropUp(window.innerHeight - rect.bottom < 280);
     }
-    if (open) setEditMode(false);
+    if (open) { setEditMode(false); setRenamingId(null); }
     setOpen((v) => !v);
   }
 
@@ -153,24 +157,64 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete }: 
           {categories.length > 0 && (
             <div>
               {categories.map((opt) => (
-                <div key={opt.value} className="flex items-center hover:bg-[#F5EEE4]">
-                  <button
-                    type="button"
-                    onClick={() => { if (!editMode) { onSelect(transaction, opt.value); setOpen(false); } }}
-                    className={`flex-1 text-left text-xs px-3 py-1.5 font-sans truncate ${editMode ? "cursor-default" : ""}`}
-                  >
-                    {opt.label}
-                  </button>
-                  {editMode && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleDelete(opt.itemId); }}
-                      disabled={deletingId === opt.itemId}
-                      className="shrink-0 px-2 py-1.5 text-[10px] text-gray-300 hover:text-red-400 disabled:opacity-40"
-                      title="Delete category"
+                <div key={opt.value} className="flex items-center hover:bg-[#F5EEE4] px-2 py-1">
+                  {editMode && renamingId === opt.itemId ? (
+                    <form
+                      className="flex items-center gap-1 flex-1"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const trimmed = renameValue.trim();
+                        if (trimmed && trimmed !== opt.label) {
+                          setSaving(true);
+                          await onRename(opt.itemId, opt.label, trimmed);
+                          setSaving(false);
+                        }
+                        setRenamingId(null);
+                      }}
                     >
-                      ✕
-                    </button>
+                      <input
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Escape") setRenamingId(null); }}
+                        className="flex-1 min-w-0 text-xs border border-[var(--color-orange)] rounded px-1.5 py-0.5 font-sans focus:outline-none bg-white"
+                        autoFocus
+                        disabled={saving}
+                      />
+                      <button type="submit" disabled={saving || !renameValue.trim()} className="text-xs text-[var(--color-orange)] hover:opacity-70 disabled:opacity-40 shrink-0 font-medium">
+                        {saving ? "…" : "Save"}
+                      </button>
+                      <button type="button" onClick={() => setRenamingId(null)} className="text-xs text-gray-400 hover:text-gray-600 shrink-0">✕</button>
+                    </form>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editMode) {
+                            setRenamingId(opt.itemId);
+                            setRenameValue(opt.label);
+                          } else {
+                            onSelect(transaction, opt.value);
+                            setOpen(false);
+                          }
+                        }}
+                        className={`flex-1 text-left text-xs py-0.5 font-sans truncate ${editMode ? "hover:text-[var(--color-orange)]" : ""}`}
+                        title={editMode ? "Click to rename" : undefined}
+                      >
+                        {opt.label}
+                      </button>
+                      {editMode && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleDelete(opt.itemId); }}
+                          disabled={deletingId === opt.itemId}
+                          className="shrink-0 px-1 text-[10px] text-gray-300 hover:text-red-400 disabled:opacity-40"
+                          title="Delete category"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               ))}
@@ -644,6 +688,7 @@ export default function TransactionsPage({
   const updateType = useUpdateTransactionType(planId);
   const addLineItem = useAddLineItem(planId);
   const deleteLineItem = useDeleteLineItem(planId);
+  const renameCategory = useRenameCategory(planId);
   const deleteAllTransactions = useDeleteAllTransactions(planId);
   const [showImport, setShowImport] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
@@ -722,6 +767,10 @@ export default function TransactionsPage({
 
   async function handleDeleteCategory(itemId: string) {
     await deleteLineItem.mutateAsync(itemId);
+  }
+
+  async function handleRenameCategory(itemId: string, _oldLabel: string, newLabel: string) {
+    await renameCategory.mutateAsync({ itemId, newLabel });
   }
 
   async function handleImport(rows: CsvTransaction[]) {
@@ -945,6 +994,7 @@ export default function TransactionsPage({
                         onSelect={handleCategorySelect}
                         onAdd={handleAddCategory}
                         onDelete={handleDeleteCategory}
+                        onRename={handleRenameCategory}
                       />
                     </td>
                     <td className="pr-3 py-2 text-right">

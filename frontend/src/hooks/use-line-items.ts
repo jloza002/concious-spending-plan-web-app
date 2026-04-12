@@ -95,6 +95,19 @@ export function useReorderLineItems(planId: string) {
   });
 }
 
+/** Rename a line item — also updates all transactions referencing the old label */
+export function useRenameCategory(planId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, newLabel }: { itemId: string; newLabel: string }) =>
+      api.patch<SpendingPlan>(`/plans/${planId}/items/${itemId}/rename`, { newLabel }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["plan", planId], data);
+      queryClient.invalidateQueries({ queryKey: ["transactions", planId] });
+    },
+  });
+}
+
 /** Delete a line item */
 export function useDeleteLineItem(planId: string) {
   const queryClient = useQueryClient();
