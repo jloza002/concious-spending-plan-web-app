@@ -359,3 +359,16 @@ export async function autoCategorize(
 
   return result;
 }
+
+/** Permanently delete all transactions for a plan */
+export async function deleteAllTransactions(planId: string, userId: string): Promise<void> {
+  const plan = await prisma.spendingPlan.findFirst({
+    where: { id: planId, userId },
+    select: { id: true },
+  });
+  if (!plan) throw new AppError("Spending plan not found", 404);
+
+  await prisma.transaction.deleteMany({
+    where: { import: { spendingPlanId: planId } },
+  });
+}

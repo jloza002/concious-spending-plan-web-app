@@ -14,6 +14,7 @@ import {
   useRestoreTransaction,
   useAddTransaction,
   useUpdateTransactionType,
+  useDeleteAllTransactions,
 } from "@/hooks/use-transactions";
 import { Button } from "@/components/ui/button";
 import type { CsvTransaction, Transaction } from "@csp/shared";
@@ -44,6 +45,7 @@ interface CategorySelectProps {
 function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete }: CategorySelectProps) {
   const [open, setOpen] = useState(false);
   const [dropUp, setDropUp] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [saving, setSaving] = useState(false);
@@ -56,6 +58,7 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete }: 
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false);
+        setEditMode(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -67,6 +70,7 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete }: 
       const rect = buttonRef.current.getBoundingClientRect();
       setDropUp(window.innerHeight - rect.bottom < 280);
     }
+    if (open) setEditMode(false);
     setOpen((v) => !v);
   }
 
@@ -149,14 +153,15 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete }: 
           {categories.length > 0 && (
             <div>
               {categories.map((opt) => (
-                  <div key={opt.value} className="flex items-center group hover:bg-[#F5EEE4]">
-                    <button
-                      type="button"
-                      onClick={() => { onSelect(transaction, opt.value); setOpen(false); }}
-                      className="flex-1 text-left text-xs px-3 py-1.5 font-sans truncate"
-                    >
-                      {opt.label}
-                    </button>
+                <div key={opt.value} className="flex items-center hover:bg-[#F5EEE4]">
+                  <button
+                    type="button"
+                    onClick={() => { if (!editMode) { onSelect(transaction, opt.value); setOpen(false); } }}
+                    className={`flex-1 text-left text-xs px-3 py-1.5 font-sans truncate ${editMode ? "cursor-default" : ""}`}
+                  >
+                    {opt.label}
+                  </button>
+                  {editMode && (
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); handleDelete(opt.itemId); }}
@@ -166,19 +171,39 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete }: 
                     >
                       ✕
                     </button>
-                  </div>
-                ))}
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
           <div className="border-t border-gray-100 mt-1 pt-1">
-            <button
-              type="button"
-              onClick={() => { setOpen(false); setIsAdding(true); }}
-              className="w-full text-left text-xs px-3 py-1.5 hover:bg-[#F5EEE4] font-sans text-[var(--color-orange)]"
-            >
-              ＋ Add category
-            </button>
+            {editMode ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { setOpen(false); setIsAdding(true); }}
+                  className="w-full text-left text-xs px-3 py-1.5 hover:bg-[#F5EEE4] font-sans text-[var(--color-orange)]"
+                >
+                  ＋ Add category
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditMode(false)}
+                  className="w-full text-left text-xs px-3 py-1.5 hover:bg-[#F5EEE4] font-sans text-gray-500"
+                >
+                  Done
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditMode(true)}
+                className="w-full text-left text-xs px-3 py-1.5 hover:bg-[#F5EEE4] font-sans text-gray-500"
+              >
+                Edit categories
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -619,9 +644,12 @@ export default function TransactionsPage({
   const updateType = useUpdateTransactionType(planId);
   const addLineItem = useAddLineItem(planId);
   const deleteLineItem = useDeleteLineItem(planId);
+  const deleteAllTransactions = useDeleteAllTransactions(planId);
   const [showImport, setShowImport] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Filter state
   const [filterCategory, setFilterCategory] = useState("");
@@ -631,6 +659,16 @@ export default function TransactionsPage({
 
   const hasFilters = filterCategory || filterKeyword || filterDateFrom || filterDateTo;
 
+  // Subcategories actually assigned to at least one transaction
+  const usedSubcategories = useMemo(() => {
+    if (!transactions) return [];
+    const seen = new Set<string>();
+    for (const t of transactions) {
+      if (t.spendingSubcategory) seen.add(t.spendingSubcategory);
+    }
+    return Array.from(seen).sort();
+  }, [transactions]);
+
   const filteredTransactions = useMemo(() => {
     if (!transactions) return [];
     let result = transactions;
@@ -638,7 +676,7 @@ export default function TransactionsPage({
       if (filterCategory === "uncategorized") {
         result = result.filter((t) => !t.spendingCategory);
       } else {
-        result = result.filter((t) => t.spendingCategory === filterCategory);
+        result = result.filter((t) => t.spendingSubcategory === filterCategory);
       }
     }
     if (filterKeyword) {
@@ -736,7 +774,26 @@ export default function TransactionsPage({
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {transactions && transactions.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowResetConfirm(true)}
+              className="text-red-500 hover:text-red-600 hover:bg-red-50"
+            >
+              Reset Plan
+            </Button>
+          )}
+          {transactions && transactions.length > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowFilters((v) => !v)}
+            >
+              {showFilters ? "Hide Filters" : "Filters"}
+            </Button>
+          )}
           {transactions && transactions.length > 0 && uncategorizedCount > 0 && (
             <Button
               variant="secondary"
@@ -753,7 +810,7 @@ export default function TransactionsPage({
       </div>
 
       {/* Filter Bar */}
-      {transactions && transactions.length > 0 && (
+      {transactions && transactions.length > 0 && showFilters && (
         <div className="flex flex-wrap items-end gap-3 bg-white rounded-xl p-3 shadow-sm border border-gray-100">
           <div className="flex-1 min-w-[140px]">
             <label className="block text-[10px] font-medium text-gray-500 mb-1 font-sans uppercase tracking-wide">Search</label>
@@ -774,9 +831,9 @@ export default function TransactionsPage({
             >
               <option value="">All</option>
               <option value="uncategorized">Uncategorized</option>
-              <option value="fixed_costs">Fixed Costs</option>
-              <option value="investments">Investments</option>
-              <option value="savings">Savings</option>
+              {usedSubcategories.map((sub) => (
+                <option key={sub} value={sub}>{sub}</option>
+              ))}
             </select>
           </div>
           <div className="min-w-[120px]">
@@ -971,6 +1028,39 @@ export default function TransactionsPage({
           onAdd={async (data) => { await addTransaction.mutateAsync({ ...data, type: data.type as "Sale" | "Return" | "Payment" | "Adjustment" | "Debit" | "Credit" }); }}
           isAdding={addTransaction.isPending}
         />
+      )}
+
+      {/* Reset Plan Confirmation Modal */}
+      {showResetConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setShowResetConfirm(false); }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+            <div className="bg-red-600 px-6 py-4">
+              <h2 className="font-display text-lg font-bold text-white">Reset Plan</h2>
+            </div>
+            <div className="p-6 space-y-3">
+              <p className="text-sm text-gray-700 font-sans">
+                This will <span className="font-semibold text-red-600">permanently delete all {transactions?.length} transactions</span> for this plan. This cannot be undone.
+              </p>
+              <p className="text-xs text-gray-500 font-sans">Are you sure you want to continue?</p>
+            </div>
+            <div className="px-6 pb-6 flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setShowResetConfirm(false)}>Cancel</Button>
+              <Button
+                onClick={async () => {
+                  await deleteAllTransactions.mutateAsync();
+                  setShowResetConfirm(false);
+                }}
+                disabled={deleteAllTransactions.isPending}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {deleteAllTransactions.isPending ? "Deleting…" : "Yes, delete all"}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

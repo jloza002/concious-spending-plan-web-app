@@ -145,6 +145,18 @@ export function useUpdateTransactionType(planId: string) {
   });
 }
 
+/** Permanently delete all transactions for a plan */
+export function useDeleteAllTransactions(planId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete(`/plans/${planId}/transactions`),
+    onSuccess: () => {
+      queryClient.setQueryData(["transactions", planId], []);
+      queryClient.setQueryData(["transactions", planId, "deleted"], []);
+    },
+  });
+}
+
 /** Auto-categorize transactions using memory */
 export function useAutoCategorize(planId: string) {
   return useMutation({

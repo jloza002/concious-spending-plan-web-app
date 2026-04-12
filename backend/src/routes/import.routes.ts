@@ -60,6 +60,16 @@ importRoutes.post("/:id/transaction", async (req, res, next) => {
   }
 });
 
+/** DELETE /plans/:id/transactions - Permanently delete all transactions for a plan */
+importRoutes.delete("/:id/transactions", async (req, res, next) => {
+  try {
+    await importService.deleteAllTransactions(req.params.id, req.user!.sub);
+    res.json({ message: "All transactions deleted." });
+  } catch (err) {
+    next(err);
+  }
+});
+
 /** POST /plans/:id/auto-categorize - Auto-categorize using memory */
 importRoutes.post("/:id/auto-categorize", async (req, res, next) => {
   try {
