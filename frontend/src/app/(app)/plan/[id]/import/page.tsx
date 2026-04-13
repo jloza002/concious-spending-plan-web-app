@@ -145,7 +145,7 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
       </button>
 
       {open && (
-        <div className={`absolute z-30 left-0 w-56 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden ${dropUp ? "bottom-full mb-1" : "mt-1"}`}>
+        <div className={`absolute z-30 left-0 w-72 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden ${dropUp ? "bottom-full mb-1" : "mt-1"}`}>
           {/* Scrollable category list */}
           <div className="max-h-56 overflow-y-auto" style={{ scrollbarGutter: "stable" }}>
             <button
