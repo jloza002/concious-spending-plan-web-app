@@ -74,6 +74,18 @@ export function useUpdatePlan(planId: string) {
   return { ...mutation, debouncedUpdate };
 }
 
+/** Add or remove a custom transaction type for a plan */
+export function useManageTransactionType(planId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ action, type }: { action: "add" | "remove"; type: string }) =>
+      api.patch<import("@csp/shared").SpendingPlan>(`/plans/${planId}/transaction-types`, { action, type }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["plan", planId], data);
+    },
+  });
+}
+
 /** Delete a plan */
 export function useDeletePlan() {
   const queryClient = useQueryClient();

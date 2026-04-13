@@ -10,6 +10,41 @@ export const lineItemRoutes = Router();
 
 lineItemRoutes.use(requireAuth);
 
+/** PATCH /plans/:id/transaction-types - Add or remove a custom transaction type */
+lineItemRoutes.patch("/:id/transaction-types", async (req, res, next) => {
+  try {
+    const { id: planId } = req.params;
+    const userId = req.user!.sub;
+    const { action, type } = z.object({
+      action: z.enum(["add", "remove"]),
+      type: z.string().min(1).max(50),
+    }).parse(req.body);
+
+    const plan = await prisma.spendingPlan.findFirst({
+      where: { id: planId, userId },
+      select: { id: true, customTransactionTypes: true },
+    });
+    if (!plan) throw new AppError("Spending plan not found", 404);
+
+    const updated =
+      action === "add"
+        ? plan.customTransactionTypes.includes(type)
+          ? plan.customTransactionTypes
+          : [...plan.customTransactionTypes, type]
+        : plan.customTransactionTypes.filter((t) => t !== type);
+
+    await prisma.spendingPlan.update({
+      where: { id: planId },
+      data: { customTransactionTypes: updated },
+    });
+
+    const updatedPlan = await planService.getPlan(planId, userId);
+    res.json(updatedPlan);
+  } catch (err) {
+    next(err);
+  }
+});
+
 /** POST /plans/:id/items - Add a new subcategory line item */
 lineItemRoutes.post("/:id/items", async (req, res, next) => {
   try {

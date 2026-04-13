@@ -241,6 +241,7 @@ interface PlanWithLineItems {
   netMonthlyIncome: any;
   includeMiscellaneous: boolean;
   notes: string | null;
+  customTransactionTypes: string[];
   createdAt: Date;
   updatedAt: Date;
   lineItems: Array<{
@@ -320,6 +321,7 @@ function formatPlanResponse(plan: PlanWithLineItems): SpendingPlan {
     netMonthlyIncome: Number(plan.netMonthlyIncome),
     includeMiscellaneous: plan.includeMiscellaneous,
     notes: plan.notes ?? null,
+    customTransactionTypes: plan.customTransactionTypes,
     lineItems: plan.lineItems.map((item) => ({
       id: item.id,
       spendingPlanId: item.spendingPlanId,

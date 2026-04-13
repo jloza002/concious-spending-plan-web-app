@@ -2,7 +2,7 @@
 
 import { use, useState, useMemo, useRef, useEffect } from "react";
 import Papa from "papaparse";
-import { usePlan } from "@/hooks/use-spending-plan";
+import { usePlan, useManageTransactionType } from "@/hooks/use-spending-plan";
 import { useAddLineItem, useDeleteLineItem, useRenameCategory } from "@/hooks/use-line-items";
 import {
   useTransactions,
@@ -99,6 +99,10 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
     transaction.spendingSubcategory ||
     (transaction.spendingCategory ? SECTION_LABELS[transaction.spendingCategory] ?? transaction.spendingCategory : "");
   const isCategorized = !!transaction.spendingCategory;
+  // Orphaned: has a subcategory that no longer exists in this plan's line items
+  const isOrphaned =
+    !!transaction.spendingSubcategory &&
+    !categories.some((c) => c.label === transaction.spendingSubcategory);
 
   if (isAdding) {
     return (
@@ -135,13 +139,16 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
         type="button"
         onClick={handleToggle}
         className={`w-full text-xs text-left rounded px-2 py-1.5 font-sans focus:outline-none flex items-center justify-between gap-1 transition-colors ${
-          isCategorized
+          isOrphaned
+            ? "bg-amber-50 text-amber-700 border border-amber-300 font-medium"
+            : isCategorized
             ? "bg-[#15302F]/10 text-[#15302F] border border-[#15302F]/20 font-medium"
             : "border border-gray-200 text-gray-400 bg-white hover:border-gray-300"
         }`}
+        title={isOrphaned ? "Category no longer exists in this plan — click to reassign" : undefined}
       >
         <span className="truncate">{currentLabel || "Uncategorized"}</span>
-        <span className="text-[10px] opacity-50 shrink-0">▾</span>
+        <span className="text-[10px] opacity-50 shrink-0">{isOrphaned ? "⚠" : "▾"}</span>
       </button>
 
       {open && (
@@ -605,10 +612,10 @@ function AddTransactionModal({ onClose, onAdd, isAdding }: AddTransactionModalPr
 
 // ─── Type Select ──────────────────────────────────────────────────────────────
 
-const TRANSACTION_TYPES = ["Sale", "Return", "Payment", "Adjustment", "Debit", "Credit"] as const;
-type TransactionType = (typeof TRANSACTION_TYPES)[number];
+const BUILT_IN_TYPES = ["Sale", "Return", "Payment", "Adjustment", "Debit", "Credit"] as const;
+type BuiltInType = (typeof BUILT_IN_TYPES)[number];
 
-const TYPE_STYLES: Record<TransactionType, string> = {
+const TYPE_STYLES: Record<string, string> = {
   Sale: "bg-[#EEE3D2] text-[#15302F]",
   Return: "bg-green-100 text-green-700",
   Payment: "bg-gray-100 text-gray-500",
@@ -617,33 +624,64 @@ const TYPE_STYLES: Record<TransactionType, string> = {
   Credit: "bg-teal-100 text-teal-700",
 };
 
+const CUSTOM_TYPE_STYLE = "bg-purple-100 text-purple-700";
+
 interface TypeSelectProps {
   transaction: Transaction;
-  onSelect: (transactionId: string, type: TransactionType) => void;
+  customTypes: string[];
+  onSelect: (transactionId: string, type: string) => void;
+  onAddType: (type: string) => Promise<void>;
+  onDeleteType: (type: string) => Promise<void>;
   disabled?: boolean;
 }
 
-function TypeSelect({ transaction, onSelect, disabled }: TypeSelectProps) {
+function TypeSelect({ transaction, customTypes, onSelect, onAddType, onDeleteType, disabled }: TypeSelectProps) {
   const [open, setOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [newType, setNewType] = useState("");
+  const [deletingType, setDeletingType] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setEditMode(false);
+        setIsAdding(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const current = transaction.type as TransactionType;
+  const current = transaction.type;
+  const typeStyle = TYPE_STYLES[current] ?? CUSTOM_TYPE_STYLE;
+  const allTypes = [...BUILT_IN_TYPES, ...customTypes];
+
+  async function handleAddType(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = newType.trim();
+    if (!trimmed) return;
+    setIsAdding(true);
+    await onAddType(trimmed);
+    setNewType("");
+    setIsAdding(false);
+  }
+
+  async function handleDelete(type: string) {
+    setDeletingType(type);
+    await onDeleteType(type);
+    setDeletingType(null);
+  }
 
   return (
     <div ref={ref} className="relative inline-block">
       <button
         onClick={() => !disabled && setOpen((v) => !v)}
         disabled={disabled}
-        className={`text-xs px-2 py-0.5 rounded-full font-medium transition-all ${TYPE_STYLES[current]} ${
+        className={`text-xs px-2 py-0.5 rounded-full font-medium transition-all ${typeStyle} ${
           !disabled ? "hover:ring-2 hover:ring-offset-1 hover:ring-gray-300 cursor-pointer" : "cursor-default"
         }`}
         title="Click to change type"
@@ -651,21 +689,81 @@ function TypeSelect({ transaction, onSelect, disabled }: TypeSelectProps) {
         {current}
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[130px]">
-          {TRANSACTION_TYPES.map((type) => (
-            <button
-              key={type}
-              onClick={() => { onSelect(transaction.id, type); setOpen(false); }}
-              className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-gray-50 transition-colors ${
-                type === current ? "font-semibold" : ""
-              }`}
-            >
-              <span className={`inline-block px-1.5 py-0.5 rounded-full font-medium ${TYPE_STYLES[type]}`}>
-                {type}
-              </span>
-              {type === current && <span className="ml-auto text-gray-400">✓</span>}
-            </button>
-          ))}
+        <div className="absolute z-50 mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden min-w-[160px]">
+          {/* Scrollable list */}
+          <div className="max-h-52 overflow-y-auto">
+            {allTypes.map((type) => {
+              const isCustom = !BUILT_IN_TYPES.includes(type as BuiltInType);
+              return (
+                <div key={type} className="flex items-center hover:bg-gray-50">
+                  <button
+                    onClick={() => { if (!editMode) { onSelect(transaction.id, type); setOpen(false); } }}
+                    className="flex-1 text-left px-3 py-1.5 text-xs flex items-center gap-2"
+                  >
+                    <span className={`inline-block px-1.5 py-0.5 rounded-full font-medium ${TYPE_STYLES[type] ?? CUSTOM_TYPE_STYLE}`}>
+                      {type}
+                    </span>
+                    {!editMode && type === current && <span className="ml-auto text-gray-400 text-[10px]">✓</span>}
+                  </button>
+                  {editMode && isCustom && (
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(type)}
+                      disabled={deletingType === type}
+                      className="shrink-0 px-2 py-1.5 text-[10px] text-gray-300 hover:text-red-400 disabled:opacity-40"
+                      title="Delete type"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Fixed footer */}
+          <div className="border-t border-gray-100">
+            {editMode ? (
+              isAdding ? (
+                <form onSubmit={handleAddType} className="flex items-center gap-1 px-2 py-1.5">
+                  <input
+                    value={newType}
+                    onChange={(e) => setNewType(e.target.value)}
+                    placeholder="Type name…"
+                    className="flex-1 min-w-0 text-xs border border-[var(--color-orange)] rounded px-1.5 py-0.5 font-sans focus:outline-none bg-white"
+                    autoFocus
+                  />
+                  <button type="submit" disabled={!newType.trim()} className="text-xs text-[var(--color-orange)] hover:opacity-70 disabled:opacity-40 font-medium shrink-0">Add</button>
+                  <button type="button" onClick={() => { setIsAdding(false); setNewType(""); }} className="text-xs text-gray-400 shrink-0">✕</button>
+                </form>
+              ) : (
+                <div className="flex">
+                  <button
+                    type="button"
+                    onClick={() => setIsAdding(true)}
+                    className="flex-1 text-left text-xs px-3 py-2 hover:bg-gray-50 font-sans text-[var(--color-orange)]"
+                  >
+                    ＋ New type
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditMode(false)}
+                    className="text-xs px-3 py-2 hover:bg-gray-50 font-sans text-gray-500 border-l border-gray-100"
+                  >
+                    Done
+                  </button>
+                </div>
+              )
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditMode(true)}
+                className="w-full text-left text-xs px-3 py-2 hover:bg-gray-50 font-sans text-gray-500 flex items-center gap-1.5"
+              >
+                <span>✎</span> Edit types
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -694,6 +792,7 @@ export default function TransactionsPage({
   const deleteLineItem = useDeleteLineItem(planId);
   const renameCategory = useRenameCategory(planId);
   const deleteAllTransactions = useDeleteAllTransactions(planId);
+  const manageType = useManageTransactionType(planId);
   const [showImport, setShowImport] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
@@ -775,6 +874,16 @@ export default function TransactionsPage({
 
   async function handleRenameCategory(itemId: string, _oldLabel: string, newLabel: string) {
     await renameCategory.mutateAsync({ itemId, newLabel });
+  }
+
+  const customTypes = plan?.customTransactionTypes ?? [];
+
+  async function handleAddType(type: string) {
+    await manageType.mutateAsync({ action: "add", type });
+  }
+
+  async function handleDeleteType(type: string) {
+    await manageType.mutateAsync({ action: "remove", type });
   }
 
   async function handleImport(rows: CsvTransaction[]) {
@@ -941,17 +1050,17 @@ export default function TransactionsPage({
         </div>
       ) : (
         /* Transactions Table */
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 max-w-5xl mx-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-sm font-sans">
               <thead>
                 <tr className="bg-[#15302F]">
-                  <th className="text-left px-4 py-3 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide">Date</th>
-                  <th className="text-left px-4 py-3 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide">Description</th>
-                  <th className="text-left px-4 py-3 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide">Type</th>
-                  <th className="text-right px-4 py-3 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide">Amount</th>
-                  <th className="text-left px-4 py-3 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide w-52">Category</th>
-                  <th className="w-8"></th>
+                  <th className="text-left px-2 py-2.5 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide w-24">Date</th>
+                  <th className="text-left px-2 py-2.5 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide">Description</th>
+                  <th className="text-left px-2 py-2.5 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide w-28">Type</th>
+                  <th className="text-right px-2 py-2.5 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide w-24">Amount</th>
+                  <th className="text-left px-2 py-2.5 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide w-44">Category</th>
+                  <th className="w-6"></th>
                 </tr>
               </thead>
               <tbody>
@@ -962,36 +1071,37 @@ export default function TransactionsPage({
                       t.isDuplicate ? "opacity-60" : i % 2 === 0 ? "bg-white" : "bg-[#F5EEE4]/30"
                     }`}
                   >
-                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{t.transactionDate}</td>
-                    <td className="px-4 py-2.5 max-w-xs">
-                      <div className="flex items-center gap-1.5 truncate">
-                        <span className="truncate text-gray-800">{t.description}</span>
+                    <td className="px-2 py-2 text-xs text-gray-500 whitespace-nowrap w-24">{t.transactionDate}</td>
+                    <td className="px-2 py-2 max-w-[200px]">
+                      <div className="flex items-center gap-1 truncate">
+                        <span className="truncate text-gray-800 text-xs">{t.description}</span>
                         {!t.isManual && (
-                          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">import</span>
+                          <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">imp</span>
                         )}
                         {t.isDuplicate && (
-                          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">duplicate</span>
+                          <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">dup</span>
                         )}
                         {t.isManual && (
-                          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">manual</span>
+                          <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">man</span>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-2 py-2 w-28">
                       <TypeSelect
                         transaction={t}
-                        onSelect={(transactionId, type) =>
-                          updateType.mutate({ transactionId, type })
-                        }
+                        customTypes={customTypes}
+                        onSelect={(transactionId, type) => updateType.mutate({ transactionId, type })}
+                        onAddType={handleAddType}
+                        onDeleteType={handleDeleteType}
                         disabled={updateType.isPending}
                       />
                     </td>
-                    <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${
+                    <td className={`px-2 py-2 text-right tabular-nums font-medium text-xs w-24 ${
                       t.amount > 0 ? "text-green-600" : "text-gray-800"
                     }`}>
                       ${Math.abs(Number(t.amount)).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </td>
-                    <td className="px-4 py-2 w-52">
+                    <td className="px-2 py-1.5 w-44">
                       <CategorySelect
                         transaction={t}
                         categories={categoryOptions}
@@ -1001,7 +1111,7 @@ export default function TransactionsPage({
                         onRename={handleRenameCategory}
                       />
                     </td>
-                    <td className="pr-3 py-2 text-right">
+                    <td className="pr-2 py-2 text-right w-6">
                       <button
                         onClick={() => deleteTransaction.mutate(t.id)}
                         disabled={deleteTransaction.isPending}

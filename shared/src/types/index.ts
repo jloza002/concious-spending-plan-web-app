@@ -20,6 +20,7 @@ export interface SpendingPlan {
   // Settings
   includeMiscellaneous: boolean;
   notes: string | null;
+  customTransactionTypes: string[];
 
   // Line items grouped by section
   lineItems: PlanLineItem[];
@@ -48,7 +49,7 @@ export interface Transaction {
   postDate: string;
   description: string;
   originalCategory: string | null;
-  type: "Sale" | "Return" | "Payment" | "Adjustment";
+  type: string;
   amount: number;
   memo: string | null;
   spendingCategory: string | null;
