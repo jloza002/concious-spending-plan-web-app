@@ -7,6 +7,7 @@ import { prisma } from "../db/client.js";
 import { AppError } from "../middleware/error-handler.js";
 import { requireAuth } from "../middleware/auth.js";
 import { auditLog } from "../services/audit.service.js";
+import { DEFAULT_FIXED_COSTS, DEFAULT_INVESTMENTS, DEFAULT_SAVINGS } from "@csp/shared";
 
 export const authRoutes = Router();
 
@@ -114,6 +115,14 @@ authRoutes.post("/register", async (req, res, next) => {
       },
       select: { id: true, name: true, email: true, createdAt: true },
     });
+
+    // Seed the user's category library with the defaults
+    const seedRows = [
+      ...DEFAULT_FIXED_COSTS.map((label, i) => ({ userId: user.id, section: "fixed_costs", label, sortOrder: i + 1 })),
+      ...DEFAULT_INVESTMENTS.map((label, i) => ({ userId: user.id, section: "investments", label, sortOrder: i + 1 })),
+      ...DEFAULT_SAVINGS.map((label, i) => ({ userId: user.id, section: "savings", label, sortOrder: i + 1 })),
+    ];
+    await prisma.userCategory.createMany({ data: seedRows, skipDuplicates: true });
 
     res.status(201).json({ ...user, message: "Account created! You can now sign in." });
   } catch (err) {

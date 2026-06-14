@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState, useMemo, useRef, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Papa from "papaparse";
 import { usePlan, useManageTransactionType } from "@/hooks/use-spending-plan";
 import { useAddLineItem, useDeleteLineItem, useRenameCategory } from "@/hooks/use-line-items";
@@ -14,6 +15,7 @@ import {
   useRestoreTransaction,
   useAddTransaction,
   useUpdateTransactionType,
+  useUpdateTransactionAccountType,
   useDeleteAllTransactions,
 } from "@/hooks/use-transactions";
 import { Button } from "@/components/ui/button";
@@ -41,9 +43,10 @@ interface CategorySelectProps {
   onAdd: (transaction: Transaction, label: string) => Promise<void>;
   onDelete: (itemId: string) => Promise<void>;
   onRename: (itemId: string, oldLabel: string, newLabel: string) => Promise<void>;
+  locked?: boolean;
 }
 
-function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, onRename }: CategorySelectProps) {
+function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, onRename, locked = false }: CategorySelectProps) {
   const [open, setOpen] = useState(false);
   const [dropUp, setDropUp] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -152,7 +155,7 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
       </button>
 
       {open && (
-        <div className={`absolute z-30 left-0 w-72 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden ${dropUp ? "bottom-full mb-1" : "mt-1"}`}>
+        <div className={`absolute z-50 left-0 w-72 bg-white border border-gray-300 rounded-lg shadow-2xl ring-1 ring-black/5 overflow-hidden ${dropUp ? "bottom-full mb-1" : "mt-1"}`}>
           {/* Scrollable category list */}
           <div className="max-h-56 overflow-y-auto" style={{ scrollbarGutter: "stable" }}>
             <button
@@ -232,6 +235,11 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
           </div>
 
           {/* Fixed footer — always visible regardless of scroll */}
+          {locked ? (
+            <div className="border-t border-gray-100 px-3 py-2 text-[10px] text-amber-700 bg-amber-50 font-sans">
+              🔒 Locked plan — unlock from the plan page to edit categories.
+            </div>
+          ) : (
           <div className="border-t border-gray-100">
             {editMode ? (
               <div className="flex">
@@ -260,6 +268,7 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
               </button>
             )}
           </div>
+          )}
         </div>
       )}
     </div>
@@ -270,14 +279,44 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
 
 interface ImportModalProps {
   onClose: () => void;
-  onImport: (rows: CsvTransaction[]) => Promise<void>;
+  onImport: (rows: CsvTransaction[], skippedDuplicates: number) => Promise<void>;
   isImporting: boolean;
+  existingTransactions: Transaction[];
 }
 
-function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
+function ImportModal({ onClose, onImport, isImporting, existingTransactions }: ImportModalProps) {
   const [parsedRows, setParsedRows] = useState<CsvTransaction[]>([]);
   const [parseError, setParseError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  // For each parsed row at index i, has the user opted to import it even if flagged as a duplicate?
+  const [keepDuplicate, setKeepDuplicate] = useState<Record<number, boolean>>({});
+
+  // Flag each parsed row as duplicate based on existing transactions in the plan
+  const rowIsDuplicate = useMemo(() => {
+    const existingKeys = new Set(
+      existingTransactions.map(
+        (t) => `${t.transactionDate}|${t.description}|${Number(t.amount).toFixed(2)}`
+      )
+    );
+    return parsedRows.map(
+      (r) => existingKeys.has(`${r.transactionDate}|${r.description}|${r.amount.toFixed(2)}`)
+    );
+  }, [parsedRows, existingTransactions]);
+
+  const duplicateIndexes = rowIsDuplicate.flatMap((isDup, i) => (isDup ? [i] : []));
+  const duplicateCount = duplicateIndexes.length;
+  const keepCount = duplicateIndexes.filter((i) => keepDuplicate[i]).length;
+  const skipCount = duplicateCount - keepCount;
+  const rowsToImport = parsedRows.filter((_, i) => !rowIsDuplicate[i] || keepDuplicate[i]);
+
+  function normalizeAccountType(raw: string): "credit_card" | "checking" | "savings" | undefined {
+    if (!raw) return undefined;
+    const v = raw.trim().toLowerCase().replace(/\s+/g, " ");
+    if (v.includes("credit") || v.includes("card") || v.includes("cc")) return "credit_card";
+    if (v.includes("checking")) return "checking";
+    if (v.includes("saving")) return "savings";
+    return undefined;
+  }
 
   function normalizeType(raw: string): "Sale" | "Return" | "Payment" | "Adjustment" | "Debit" | "Credit" {
     const VALID = ["Sale", "Return", "Payment", "Adjustment", "Debit", "Credit"] as const;
@@ -351,6 +390,7 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
                 type: normalizeType(pick(row, "Type", "Transaction Type", "Details")),
                 amount: parseFloat(pick(row, "Amount", "Debit", "Credit") ?? "0") || 0,
                 memo: pick(row, "Memo", "Note", "Notes") || undefined,
+                accountType: normalizeAccountType(pick(row, "Account Type", "AccountType", "Account")),
               } as CsvTransaction;
             })
             .filter((t): t is CsvTransaction => t !== null);
@@ -396,9 +436,45 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
   }
 
   async function handleImport() {
-    if (parsedRows.length === 0) return;
-    await onImport(parsedRows);
-    onClose();
+    if (rowsToImport.length === 0) return;
+    try {
+      await onImport(rowsToImport, skipCount);
+      onClose();
+    } catch {
+      // parent has already shown the error in the summary banner
+    }
+  }
+
+  function handleDownloadTemplate() {
+    const headers = [
+      "Transaction Date",
+      "Post Date",
+      "Description",
+      "Category",
+      "Type",
+      "Amount",
+      "Memo",
+      "Account Type",
+    ];
+    const sample = [
+      ["2026-01-15", "2026-01-16", "Whole Foods Market", "Groceries", "Sale", "-87.42", "", "Credit Card"],
+      ["2026-01-15", "2026-01-15", "Salary Deposit", "Income", "Credit", "3500.00", "Monthly payroll", "Checking Account"],
+    ];
+    const escape = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    const csv =
+      headers.map(escape).join(",") +
+      "\n" +
+      sample.map((row) => row.map(escape).join(",")).join("\n") +
+      "\n";
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "csp-transactions-template.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -442,6 +518,16 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
                 Browse File
                 <input type="file" accept=".csv,.CSV" onChange={handleFileChange} className="hidden" />
               </label>
+              <p className="mt-4 text-xs text-gray-500 font-sans">
+                Not sure of the format?{" "}
+                <button
+                  type="button"
+                  onClick={handleDownloadTemplate}
+                  className="text-[var(--color-orange)] hover:underline font-medium"
+                >
+                  Download CSV template
+                </button>
+              </p>
               {parseError && (
                 <p className="mt-3 text-sm text-red-500 font-sans">{parseError}</p>
               )}
@@ -452,37 +538,102 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
               <div className="flex items-center justify-between mb-3">
                 <p className="font-sans font-medium text-gray-700">
                   <span className="text-[#15302F] font-bold">{parsedRows.length}</span> transactions ready to import
+                  {duplicateCount > 0 && (
+                    <span className="ml-2 text-xs text-amber-700">
+                      ({duplicateCount} possible duplicate{duplicateCount === 1 ? "" : "s"})
+                    </span>
+                  )}
                 </p>
                 <button
-                  onClick={() => setParsedRows([])}
+                  onClick={() => { setParsedRows([]); setKeepDuplicate({}); }}
                   className="text-xs text-gray-400 hover:text-gray-600 font-sans"
                 >
                   Change file
                 </button>
               </div>
+
+              {duplicateCount > 0 && (
+                <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 flex items-center justify-between gap-3">
+                  <p className="text-xs text-amber-800 font-sans">
+                    <span className="font-semibold">{skipCount}</span> will be skipped,{" "}
+                    <span className="font-semibold">{keepCount}</span> will be imported anyway.
+                    Tick the checkbox on a duplicate row to import it.
+                  </p>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next: Record<number, boolean> = {};
+                        duplicateIndexes.forEach((i) => { next[i] = true; });
+                        setKeepDuplicate(next);
+                      }}
+                      className="text-xs text-amber-800 hover:underline font-medium"
+                    >
+                      Import all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setKeepDuplicate({})}
+                      className="text-xs text-amber-800 hover:underline font-medium"
+                    >
+                      Skip all
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg">
                 <table className="w-full text-sm font-sans">
                   <thead className="bg-[#15302F] sticky top-0">
                     <tr>
+                      <th className="w-8 px-2 py-2"></th>
                       <th className="text-left px-3 py-2 text-[var(--color-warm-beige)] text-xs font-medium">Date</th>
                       <th className="text-left px-3 py-2 text-[var(--color-warm-beige)] text-xs font-medium">Description</th>
                       <th className="text-right px-3 py-2 text-[var(--color-warm-beige)] text-xs font-medium">Amount</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {parsedRows.slice(0, 15).map((row, i) => (
-                      <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[#F5EEE4]"}>
-                        <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">{row.transactionDate}</td>
-                        <td className="px-3 py-1.5 text-xs truncate max-w-xs">{row.description}</td>
-                        <td className={`px-3 py-1.5 text-xs text-right tabular-nums font-medium ${row.amount > 0 ? "text-green-600" : "text-gray-700"}`}>
-                          ${Math.abs(row.amount).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                    {parsedRows.length > 15 && (
+                    {parsedRows.slice(0, 30).map((row, i) => {
+                      const isDup = rowIsDuplicate[i];
+                      const keep = !!keepDuplicate[i];
+                      return (
+                        <tr
+                          key={i}
+                          className={
+                            isDup
+                              ? (keep ? "bg-amber-50/80" : "bg-amber-50 opacity-60")
+                              : i % 2 === 0 ? "bg-white" : "bg-[#F5EEE4]"
+                          }
+                        >
+                          <td className="w-8 px-2 py-1.5 text-center">
+                            {isDup ? (
+                              <input
+                                type="checkbox"
+                                checked={keep}
+                                onChange={(e) => setKeepDuplicate((prev) => ({ ...prev, [i]: e.target.checked }))}
+                                title={keep ? "Import this duplicate" : "Skip this duplicate"}
+                              />
+                            ) : (
+                              <span className="text-emerald-600 text-[10px]">●</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">{row.transactionDate}</td>
+                          <td className="px-3 py-1.5 text-xs truncate max-w-xs">
+                            {row.description}
+                            {isDup && (
+                              <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-700">dup</span>
+                            )}
+                          </td>
+                          <td className={`px-3 py-1.5 text-xs text-right tabular-nums font-medium ${row.amount > 0 ? "text-green-600" : "text-gray-700"}`}>
+                            ${Math.abs(row.amount).toFixed(2)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {parsedRows.length > 30 && (
                       <tr>
-                        <td colSpan={3} className="px-3 py-2 text-xs text-center text-gray-400">
-                          …and {parsedRows.length - 15} more
+                        <td colSpan={4} className="px-3 py-2 text-xs text-center text-gray-400">
+                          …and {parsedRows.length - 30} more
                         </td>
                       </tr>
                     )}
@@ -493,12 +644,24 @@ function ImportModal({ onClose, onImport, isImporting }: ImportModalProps) {
           )}
         </div>
 
+        {/* Progress bar — indeterminate while a request is in flight */}
+        {isImporting && (
+          <div className="px-6 pb-2">
+            <div className="h-1 w-full overflow-hidden rounded-full bg-gray-100">
+              <div className="h-full w-1/3 animate-pulse bg-[var(--color-orange)]" />
+            </div>
+            <p className="mt-1 text-[10px] text-gray-500 font-sans uppercase tracking-wide">
+              Saving transactions and auto-categorizing…
+            </p>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="px-6 pb-6 flex justify-end gap-3">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose} disabled={isImporting}>Cancel</Button>
           {parsedRows.length > 0 && (
-            <Button onClick={handleImport} disabled={isImporting}>
-              {isImporting ? "Importing…" : `Import ${parsedRows.length} Transactions`}
+            <Button onClick={handleImport} disabled={isImporting || rowsToImport.length === 0}>
+              {isImporting ? "Importing…" : `Import ${rowsToImport.length} Transaction${rowsToImport.length === 1 ? "" : "s"}`}
             </Button>
           )}
         </div>
@@ -610,6 +773,74 @@ function AddTransactionModal({ onClose, onAdd, isAdding }: AddTransactionModalPr
   );
 }
 
+// ─── Account Select ───────────────────────────────────────────────────────────
+
+const ACCOUNT_TYPES = [
+  { value: "credit_card", label: "Credit Card", style: "bg-rose-100 text-rose-700" },
+  { value: "checking", label: "Checking", style: "bg-sky-100 text-sky-700" },
+  { value: "savings", label: "Savings", style: "bg-emerald-100 text-emerald-700" },
+] as const;
+
+interface AccountSelectProps {
+  transaction: Transaction;
+  onSelect: (id: string, accountType: "credit_card" | "checking" | "savings" | null) => void;
+  disabled?: boolean;
+}
+
+function AccountSelect({ transaction, onSelect, disabled = false }: AccountSelectProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  const current = ACCOUNT_TYPES.find((a) => a.value === transaction.accountType);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen((v) => !v)}
+        disabled={disabled}
+        className={`inline-flex items-center justify-center text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap min-w-[68px] ${
+          current ? current.style : "bg-gray-100 text-gray-400 border border-dashed border-gray-300"
+        } ${!disabled ? "hover:ring-2 hover:ring-offset-1 hover:ring-gray-300 cursor-pointer" : "cursor-default"}`}
+        title="Click to set account type"
+      >
+        {current ? current.label : "—"}
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 left-0 bg-white border border-gray-300 rounded-lg shadow-2xl ring-1 ring-black/5 overflow-hidden min-w-[140px]">
+          <button
+            onClick={() => { onSelect(transaction.id, null); setOpen(false); }}
+            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 font-sans text-gray-500"
+          >
+            Clear
+          </button>
+          {ACCOUNT_TYPES.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { onSelect(transaction.id, opt.value); setOpen(false); }}
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 font-sans flex items-center gap-2"
+            >
+              <span className={`inline-block px-1.5 py-0.5 rounded-full font-medium ${opt.style}`}>
+                {opt.label}
+              </span>
+              {transaction.accountType === opt.value && <span className="ml-auto text-gray-400 text-[10px]">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Type Select ──────────────────────────────────────────────────────────────
 
 const BUILT_IN_TYPES = ["Sale", "Return", "Payment", "Adjustment", "Debit", "Credit"] as const;
@@ -689,7 +920,7 @@ function TypeSelect({ transaction, customTypes, onSelect, onAddType, onDeleteTyp
         {current}
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden min-w-[160px]">
+        <div className="absolute z-50 mt-1 left-0 bg-white border border-gray-300 rounded-lg shadow-2xl ring-1 ring-black/5 overflow-hidden min-w-[160px]">
           {/* Scrollable list */}
           <div className="max-h-52 overflow-y-auto">
             {allTypes.map((type) => {
@@ -778,6 +1009,7 @@ export default function TransactionsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: planId } = use(params);
+  const queryClient = useQueryClient();
   const { data: plan } = usePlan(planId);
   const { data: transactions, isLoading } = useTransactions(planId);
   const importMutation = useImportTransactions(planId);
@@ -788,6 +1020,7 @@ export default function TransactionsPage({
   const { data: deletedTransactions } = useDeletedTransactions(planId);
   const addTransaction = useAddTransaction(planId);
   const updateType = useUpdateTransactionType(planId);
+  const updateAccountType = useUpdateTransactionAccountType(planId);
   const addLineItem = useAddLineItem(planId);
   const deleteLineItem = useDeleteLineItem(planId);
   const renameCategory = useRenameCategory(planId);
@@ -798,16 +1031,29 @@ export default function TransactionsPage({
   const [showDeleted, setShowDeleted] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [lastImportSummary, setLastImportSummary] = useState<
+    | { imported: number; categorized: number; skippedDuplicates: number; error?: string }
+    | null
+  >(null);
 
   // Filter state
   const [filterCategory, setFilterCategory] = useState("");
   const [filterKeyword, setFilterKeyword] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"" | "categorized" | "uncategorized" | "duplicates">("");
+  const [filterAccount, setFilterAccount] = useState<"" | "credit_card" | "checking" | "savings" | "none">("");
 
-  const hasFilters = filterCategory || filterKeyword || filterDateFrom || filterDateTo;
+  const hasFilters = filterCategory || filterKeyword || filterDateFrom || filterDateTo || filterStatus || filterAccount;
 
   // Subcategories actually assigned to at least one transaction
+  // Auto-dismiss the import summary banner after a few seconds (unless it's an error)
+  useEffect(() => {
+    if (!lastImportSummary || lastImportSummary.error) return;
+    const t = setTimeout(() => setLastImportSummary(null), 6000);
+    return () => clearTimeout(t);
+  }, [lastImportSummary]);
+
   const usedSubcategories = useMemo(() => {
     if (!transactions) return [];
     const seen = new Set<string>();
@@ -820,6 +1066,13 @@ export default function TransactionsPage({
   const filteredTransactions = useMemo(() => {
     if (!transactions) return [];
     let result = transactions;
+    if (filterStatus === "duplicates") {
+      result = result.filter((t) => t.isDuplicate);
+    } else if (filterStatus === "uncategorized") {
+      result = result.filter((t) => !t.spendingCategory);
+    } else if (filterStatus === "categorized") {
+      result = result.filter((t) => !!t.spendingCategory);
+    }
     if (filterCategory) {
       if (filterCategory === "uncategorized") {
         result = result.filter((t) => !t.spendingCategory);
@@ -837,8 +1090,15 @@ export default function TransactionsPage({
     if (filterDateTo) {
       result = result.filter((t) => t.transactionDate <= filterDateTo);
     }
+    if (filterAccount) {
+      if (filterAccount === "none") {
+        result = result.filter((t) => !t.accountType);
+      } else {
+        result = result.filter((t) => t.accountType === filterAccount);
+      }
+    }
     return result;
-  }, [transactions, filterCategory, filterKeyword, filterDateFrom, filterDateTo]);
+  }, [transactions, filterCategory, filterKeyword, filterDateFrom, filterDateTo, filterStatus, filterAccount]);
 
   const categoryOptions: CategoryOption[] = plan
     ? plan.lineItems
@@ -886,18 +1146,43 @@ export default function TransactionsPage({
     await manageType.mutateAsync({ action: "remove", type });
   }
 
-  async function handleImport(rows: CsvTransaction[]) {
-    const result = await importMutation.mutateAsync(rows) as { transactions: { id: string; description: string }[] };
-    // Auto-categorize newly imported transactions using existing memory
-    const newTxs = result?.transactions ?? [];
-    if (newTxs.length === 0) return;
-    const descriptions = newTxs.map((t) => t.description);
-    const suggestions = await autoCategorize.mutateAsync(descriptions) as Record<string, { spendingCategory: string; spendingSubcategory: string }>;
-    for (const t of newTxs) {
-      const s = suggestions[t.description];
-      if (s) {
-        assignCategory.mutate({ transactionId: t.id, spendingCategory: s.spendingCategory, spendingSubcategory: s.spendingSubcategory });
+  async function handleImport(rows: CsvTransaction[], skippedDuplicates = 0) {
+    try {
+      const result = await importMutation.mutateAsync(rows) as { transactions: { id: string; description: string }[] };
+      const newTxs = result?.transactions ?? [];
+
+      // CRITICAL: await the refetch triggered by useImportTransactions.onSuccess
+      // before firing any assignCategory mutations. assignCategory.onMutate calls
+      // cancelQueries({ queryKey: ["transactions"] }) which would kill the in-flight
+      // refetch — leaving the new transactions invisible until the next page load.
+      await queryClient.refetchQueries({ queryKey: ["transactions", planId], exact: true });
+
+      if (newTxs.length === 0) {
+        setLastImportSummary({ imported: 0, categorized: 0, skippedDuplicates });
+        return;
       }
+
+      const descriptions = newTxs.map((t) => t.description);
+      const suggestions = await autoCategorize.mutateAsync(descriptions) as Record<string, { spendingCategory: string; spendingSubcategory: string }>;
+
+      let categorized = 0;
+      for (const t of newTxs) {
+        const s = suggestions[t.description];
+        if (s) {
+          await assignCategory.mutateAsync({
+            transactionId: t.id,
+            spendingCategory: s.spendingCategory,
+            spendingSubcategory: s.spendingSubcategory,
+          });
+          categorized++;
+        }
+      }
+
+      setLastImportSummary({ imported: newTxs.length, categorized, skippedDuplicates });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Import failed.";
+      setLastImportSummary({ imported: 0, categorized: 0, skippedDuplicates, error: message });
+      throw err;
     }
   }
 
@@ -923,7 +1208,17 @@ export default function TransactionsPage({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-display text-xl font-bold text-[#15302F]">Transactions</h2>
+          <h2 className="font-display text-xl font-bold text-[#15302F] flex items-center gap-2">
+            Transactions
+            {plan?.isLocked && (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] uppercase tracking-wide font-semibold bg-amber-50 text-amber-700 border border-amber-200"
+                title="Unlock this plan from the plan page to edit categories."
+              >
+                <span aria-hidden>🔒</span> Locked
+              </span>
+            )}
+          </h2>
           {transactions && transactions.length > 0 && (
             <p className="text-sm text-gray-500 font-sans mt-0.5">
               {transactions.length} total
@@ -971,6 +1266,44 @@ export default function TransactionsPage({
         </div>
       </div>
 
+      {/* Import Summary Banner */}
+      {lastImportSummary && (
+        <div
+          className={`flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm font-sans border ${
+            lastImportSummary.error
+              ? "bg-red-50 border-red-200 text-red-700"
+              : "bg-emerald-50 border-emerald-200 text-emerald-800"
+          }`}
+          role="status"
+        >
+          <div>
+            {lastImportSummary.error ? (
+              <>
+                <span className="font-semibold">Import failed.</span>{" "}
+                <span className="opacity-80">{lastImportSummary.error}</span>
+              </>
+            ) : (
+              <>
+                <span className="font-semibold">Imported {lastImportSummary.imported} transaction{lastImportSummary.imported === 1 ? "" : "s"}.</span>{" "}
+                <span className="opacity-80">
+                  {lastImportSummary.categorized} auto-categorized
+                  {lastImportSummary.skippedDuplicates > 0 && (
+                    <> · {lastImportSummary.skippedDuplicates} duplicate{lastImportSummary.skippedDuplicates === 1 ? "" : "s"} skipped</>
+                  )}
+                </span>
+              </>
+            )}
+          </div>
+          <button
+            onClick={() => setLastImportSummary(null)}
+            className="text-xs opacity-60 hover:opacity-100 shrink-0"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Filter Bar */}
       {transactions && transactions.length > 0 && showFilters && (
         <div className="flex flex-wrap items-end gap-3 bg-white rounded-xl p-3 shadow-sm border border-gray-100">
@@ -985,6 +1318,19 @@ export default function TransactionsPage({
             />
           </div>
           <div className="min-w-[130px]">
+            <label className="block text-[10px] font-medium text-gray-500 mb-1 font-sans uppercase tracking-wide">Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
+              className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-sans focus:outline-none focus:border-[var(--color-orange)] bg-white"
+            >
+              <option value="">All</option>
+              <option value="categorized">Categorized</option>
+              <option value="uncategorized">Uncategorized</option>
+              <option value="duplicates">Duplicates</option>
+            </select>
+          </div>
+          <div className="min-w-[130px]">
             <label className="block text-[10px] font-medium text-gray-500 mb-1 font-sans uppercase tracking-wide">Category</label>
             <select
               value={filterCategory}
@@ -992,10 +1338,23 @@ export default function TransactionsPage({
               className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-sans focus:outline-none focus:border-[var(--color-orange)] bg-white"
             >
               <option value="">All</option>
-              <option value="uncategorized">Uncategorized</option>
               {usedSubcategories.map((sub) => (
                 <option key={sub} value={sub}>{sub}</option>
               ))}
+            </select>
+          </div>
+          <div className="min-w-[130px]">
+            <label className="block text-[10px] font-medium text-gray-500 mb-1 font-sans uppercase tracking-wide">Account</label>
+            <select
+              value={filterAccount}
+              onChange={(e) => setFilterAccount(e.target.value as typeof filterAccount)}
+              className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-sans focus:outline-none focus:border-[var(--color-orange)] bg-white"
+            >
+              <option value="">All</option>
+              <option value="credit_card">Credit Card</option>
+              <option value="checking">Checking</option>
+              <option value="savings">Savings</option>
+              <option value="none">Unset</option>
             </select>
           </div>
           <div className="min-w-[120px]">
@@ -1018,7 +1377,7 @@ export default function TransactionsPage({
           </div>
           {hasFilters && (
             <button
-              onClick={() => { setFilterCategory(""); setFilterKeyword(""); setFilterDateFrom(""); setFilterDateTo(""); }}
+              onClick={() => { setFilterCategory(""); setFilterKeyword(""); setFilterDateFrom(""); setFilterDateTo(""); setFilterStatus(""); setFilterAccount(""); }}
               className="text-xs text-[var(--color-orange)] hover:underline font-sans font-medium py-1.5"
             >
               Clear
@@ -1058,6 +1417,7 @@ export default function TransactionsPage({
                   <th className="text-left px-2 py-2.5 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide w-24">Date</th>
                   <th className="text-left px-2 py-2.5 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide">Description</th>
                   <th className="text-left px-2 py-2.5 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide w-28">Type</th>
+                  <th className="text-left px-2 py-2.5 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide w-28">Account</th>
                   <th className="text-right px-2 py-2.5 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide w-24">Amount</th>
                   <th className="text-left px-2 py-2.5 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide w-44">Category</th>
                   <th className="w-6"></th>
@@ -1096,6 +1456,13 @@ export default function TransactionsPage({
                         disabled={updateType.isPending}
                       />
                     </td>
+                    <td className="px-2 py-2 w-28">
+                      <AccountSelect
+                        transaction={t}
+                        onSelect={(transactionId, accountType) => updateAccountType.mutate({ transactionId, accountType })}
+                        disabled={updateAccountType.isPending}
+                      />
+                    </td>
                     <td className={`px-2 py-2 text-right tabular-nums font-medium text-xs w-24 ${
                       t.amount > 0 ? "text-green-600" : "text-gray-800"
                     }`}>
@@ -1109,6 +1476,7 @@ export default function TransactionsPage({
                         onAdd={handleAddCategory}
                         onDelete={handleDeleteCategory}
                         onRename={handleRenameCategory}
+                        locked={plan?.isLocked}
                       />
                     </td>
                     <td className="pr-2 py-2 text-right w-6">
@@ -1181,7 +1549,8 @@ export default function TransactionsPage({
         <ImportModal
           onClose={() => setShowImport(false)}
           onImport={handleImport}
-          isImporting={importMutation.isPending}
+          isImporting={importMutation.isPending || autoCategorize.isPending || assignCategory.isPending}
+          existingTransactions={transactions ?? []}
         />
       )}
 

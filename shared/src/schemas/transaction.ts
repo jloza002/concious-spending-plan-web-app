@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+/** Allowed account types for a transaction */
+export const accountTypeSchema = z.enum(["credit_card", "checking", "savings"]);
+export type AccountType = z.infer<typeof accountTypeSchema>;
+
 /** Schema for a single parsed CSV transaction row */
 export const csvTransactionSchema = z.object({
   transactionDate: z.string(),
@@ -9,6 +13,7 @@ export const csvTransactionSchema = z.object({
   type: z.enum(["Sale", "Return", "Payment", "Adjustment", "Debit", "Credit"]),
   amount: z.number(),
   memo: z.string().optional(),
+  accountType: accountTypeSchema.optional(),
 });
 
 /** Schema for bulk importing transactions */

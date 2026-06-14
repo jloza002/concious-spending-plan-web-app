@@ -1,10 +1,6 @@
 import { prisma } from "../db/client.js";
-import {
-  DEFAULT_FIXED_COSTS,
-  DEFAULT_INVESTMENTS,
-  DEFAULT_SAVINGS,
-  MISCELLANEOUS_RATE,
-} from "@csp/shared";
+import { MISCELLANEOUS_RATE } from "@csp/shared";
+import { ensureUserCategoryLibrary } from "./user-category.service.js";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -59,30 +55,20 @@ export async function createPlan(
       sortOrder: item.sortOrder,
     }));
   } else {
-    // Create default line items
-    lineItemsToCreate = [
-      ...DEFAULT_FIXED_COSTS.map((label, i) => ({
-        section: "fixed_costs",
-        label,
-        amount: 0,
-        isDefault: true,
-        sortOrder: i + 1,
-      })),
-      ...DEFAULT_INVESTMENTS.map((label, i) => ({
-        section: "investments",
-        label,
-        amount: 0,
-        isDefault: true,
-        sortOrder: i + 1,
-      })),
-      ...DEFAULT_SAVINGS.map((label, i) => ({
-        section: "savings",
-        label,
-        amount: 0,
-        isDefault: true,
-        sortOrder: i + 1,
-      })),
-    ];
+    // Pull from the user's category library so new plans inherit the user's
+    // current categories rather than the hard-coded defaults.
+    await ensureUserCategoryLibrary(userId);
+    const library = await prisma.userCategory.findMany({
+      where: { userId },
+      orderBy: [{ section: "asc" }, { sortOrder: "asc" }],
+    });
+    lineItemsToCreate = library.map((c) => ({
+      section: c.section,
+      label: c.label,
+      amount: 0,
+      isDefault: true,
+      sortOrder: c.sortOrder,
+    }));
   }
 
   const plan = await prisma.spendingPlan.create({
@@ -242,6 +228,7 @@ interface PlanWithLineItems {
   includeMiscellaneous: boolean;
   notes: string | null;
   customTransactionTypes: string[];
+  isLocked: boolean;
   createdAt: Date;
   updatedAt: Date;
   lineItems: Array<{
@@ -322,6 +309,7 @@ function formatPlanResponse(plan: PlanWithLineItems): SpendingPlan {
     includeMiscellaneous: plan.includeMiscellaneous,
     notes: plan.notes ?? null,
     customTransactionTypes: plan.customTransactionTypes,
+    isLocked: plan.isLocked,
     lineItems: plan.lineItems.map((item) => ({
       id: item.id,
       spendingPlanId: item.spendingPlanId,

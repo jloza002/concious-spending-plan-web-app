@@ -21,6 +21,7 @@ export interface SpendingPlan {
   includeMiscellaneous: boolean;
   notes: string | null;
   customTransactionTypes: string[];
+  isLocked: boolean;
 
   // Line items grouped by section
   lineItems: PlanLineItem[];
@@ -28,6 +29,17 @@ export interface SpendingPlan {
   // Computed calculations
   calculations: PlanCalculations;
 
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A category in the user's library (shared across plans, scoped to user) */
+export interface UserCategory {
+  id: string;
+  userId: string;
+  section: "fixed_costs" | "investments" | "savings";
+  label: string;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,6 +66,7 @@ export interface Transaction {
   memo: string | null;
   spendingCategory: string | null;
   spendingSubcategory: string | null;
+  accountType: "credit_card" | "checking" | "savings" | null;
   isDuplicate: boolean;
   isManual: boolean;
 }

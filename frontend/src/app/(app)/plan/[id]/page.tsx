@@ -4,6 +4,7 @@ import { use, useMemo } from "react";
 import { usePlan, useUpdatePlan } from "@/hooks/use-spending-plan";
 import { useUpdateLineItem, useAddLineItem, useDeleteLineItem, useReorderLineItems } from "@/hooks/use-line-items";
 import { useTransactions } from "@/hooks/use-transactions";
+import { useTogglePlanLock } from "@/hooks/use-user-categories";
 import { NetWorthSection } from "@/components/plan/net-worth-section";
 import { IncomeSection } from "@/components/plan/income-section";
 import { FixedCostsSection } from "@/components/plan/fixed-costs-section";
@@ -27,6 +28,7 @@ export default function PlanPage({
   const deleteItem = useDeleteLineItem(planId);
   const reorderItems = useReorderLineItems(planId);
   const { data: transactions } = useTransactions(planId);
+  const toggleLock = useTogglePlanLock(planId);
 
   // Aggregate transaction amounts by fixed_costs subcategory
   const fixedCategoryTotals = useMemo<Record<string, number>>(() => {
@@ -80,6 +82,7 @@ export default function PlanPage({
     );
   }
 
+  const fixedCostItems = plan.lineItems.filter((i) => i.section === "fixed_costs");
   const investmentItems = plan.lineItems.filter((i) => i.section === "investments");
   const savingsItems = plan.lineItems.filter((i) => i.section === "savings");
 
@@ -109,7 +112,25 @@ export default function PlanPage({
 
   return (
     <div>
-      <div className="text-right mb-2">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          {plan.isLocked && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] uppercase tracking-wide font-semibold bg-amber-50 text-amber-700 border border-amber-200"
+              title="Locked plans aren't affected by library-wide category renames or deletes."
+            >
+              <span aria-hidden>🔒</span> Locked
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => toggleLock.mutate(!plan.isLocked)}
+            disabled={toggleLock.isPending}
+            className="text-xs text-gray-500 hover:text-[#15302F] underline font-sans disabled:opacity-50"
+          >
+            {plan.isLocked ? "Unlock plan" : "Lock plan"}
+          </button>
+        </div>
         <span className={`text-xs text-gray-400 font-sans transition-opacity duration-150 ${isSaving ? "opacity-100" : "opacity-0"}`}>Saving...</span>
       </div>
 
@@ -130,10 +151,12 @@ export default function PlanPage({
         />
 
         <FixedCostsSection
+          items={fixedCostItems}
           categoryTotals={fixedCategoryTotals}
           calculations={calculations}
           includeMiscellaneous={plan.includeMiscellaneous}
           onDeleteMiscellaneous={() => debouncedUpdate({ includeMiscellaneous: false })}
+          onReorder={handleReorder}
         />
 
         <InvestmentsSection
