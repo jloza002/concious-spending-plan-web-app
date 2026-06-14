@@ -5,6 +5,18 @@ import { lineItemSchema, updateLineItemSchema, reorderItemsSchema } from "@csp/s
 import { prisma } from "../db/client.js";
 import { AppError } from "../middleware/error-handler.js";
 import * as planService from "../services/plan.service.js";
+import * as userCategoryService from "../services/user-category.service.js";
+
+/** Verify ownership and reject when the plan is locked. */
+async function loadUnlockedPlanOrThrow(planId: string, userId: string) {
+  const plan = await prisma.spendingPlan.findFirst({
+    where: { id: planId, userId },
+    select: { id: true, isLocked: true },
+  });
+  if (!plan) throw new AppError("Spending plan not found", 404);
+  if (plan.isLocked) throw new AppError("This plan is locked — unlock it to edit categories.", 409);
+  return plan;
+}
 
 export const lineItemRoutes = Router();
 
@@ -45,41 +57,18 @@ lineItemRoutes.patch("/:id/transaction-types", async (req, res, next) => {
   }
 });
 
-/** POST /plans/:id/items - Add a new subcategory line item */
+/** POST /plans/:id/items - Add a new subcategory; cascades to the user's library and unlocked plans */
 lineItemRoutes.post("/:id/items", async (req, res, next) => {
   try {
     const planId = req.params.id;
     const userId = req.user!.sub;
     const data = lineItemSchema.parse(req.body);
 
-    // Verify ownership
-    const plan = await prisma.spendingPlan.findFirst({
-      where: { id: planId, userId },
-    });
-    if (!plan) throw new AppError("Spending plan not found", 404);
+    await loadUnlockedPlanOrThrow(planId, userId);
 
-    // Determine sort order if not provided
-    let sortOrder = data.sortOrder;
-    if (sortOrder === undefined) {
-      const maxItem = await prisma.planLineItem.findFirst({
-        where: { spendingPlanId: planId, section: data.section },
-        orderBy: { sortOrder: "desc" },
-      });
-      sortOrder = (maxItem?.sortOrder ?? 0) + 1;
-    }
+    // Adding to the library propagates to every unlocked plan, including this one.
+    await userCategoryService.addUserCategory(userId, data.section, data.label);
 
-    await prisma.planLineItem.create({
-      data: {
-        spendingPlanId: planId,
-        section: data.section,
-        label: data.label,
-        amount: data.amount,
-        isDefault: false,
-        sortOrder,
-      },
-    });
-
-    // Return updated plan
     const updatedPlan = await planService.getPlan(planId, userId);
     res.status(201).json(updatedPlan);
   } catch (err) {
@@ -115,11 +104,13 @@ lineItemRoutes.put("/:id/items/:itemId", async (req, res, next) => {
   }
 });
 
-/** DELETE /plans/:id/items/:itemId - Remove a custom line item */
+/** DELETE /plans/:id/items/:itemId - Delete from the user's library; cascades to all unlocked plans */
 lineItemRoutes.delete("/:id/items/:itemId", async (req, res, next) => {
   try {
     const { id: planId, itemId } = req.params;
     const userId = req.user!.sub;
+
+    await loadUnlockedPlanOrThrow(planId, userId);
 
     const item = await prisma.planLineItem.findUnique({
       where: { id: itemId },
@@ -129,17 +120,24 @@ lineItemRoutes.delete("/:id/items/:itemId", async (req, res, next) => {
       throw new AppError("Line item not found", 404);
     }
 
-    // Clear transaction references to this deleted category
-    await prisma.transaction.updateMany({
-      where: {
-        import: { spendingPlanId: item.spendingPlanId },
-        spendingCategory: item.section,
-        spendingSubcategory: item.label,
-      },
-      data: { spendingCategory: null, spendingSubcategory: null },
+    const userCat = await prisma.userCategory.findUnique({
+      where: { userId_section_label: { userId, section: item.section, label: item.label } },
     });
-
-    await prisma.planLineItem.delete({ where: { id: itemId } });
+    if (userCat) {
+      await userCategoryService.deleteUserCategory(userId, userCat.id);
+    } else {
+      // Library row missing (legacy / orphan) — fall back to a per-plan delete so the
+      // user can still clean it up.
+      await prisma.transaction.updateMany({
+        where: {
+          import: { spendingPlanId: item.spendingPlanId },
+          spendingCategory: item.section,
+          spendingSubcategory: item.label,
+        },
+        data: { spendingCategory: null, spendingSubcategory: null },
+      });
+      await prisma.planLineItem.delete({ where: { id: itemId } });
+    }
 
     const updatedPlan = await planService.getPlan(planId, userId);
     res.json(updatedPlan);
@@ -148,12 +146,14 @@ lineItemRoutes.delete("/:id/items/:itemId", async (req, res, next) => {
   }
 });
 
-/** PATCH /plans/:id/items/:itemId/rename - Rename a line item and update all referencing transactions */
+/** PATCH /plans/:id/items/:itemId/rename - Rename in the user's library; cascades to all unlocked plans */
 lineItemRoutes.patch("/:id/items/:itemId/rename", async (req, res, next) => {
   try {
     const { id: planId, itemId } = req.params;
     const userId = req.user!.sub;
     const { newLabel } = z.object({ newLabel: z.string().min(1).max(255) }).parse(req.body);
+
+    await loadUnlockedPlanOrThrow(planId, userId);
 
     const item = await prisma.planLineItem.findUnique({
       where: { id: itemId },
@@ -163,17 +163,20 @@ lineItemRoutes.patch("/:id/items/:itemId/rename", async (req, res, next) => {
       throw new AppError("Line item not found", 404);
     }
 
-    const oldLabel = item.label;
-    if (oldLabel !== newLabel) {
+    const userCat = await prisma.userCategory.findUnique({
+      where: { userId_section_label: { userId, section: item.section, label: item.label } },
+    });
+    if (userCat) {
+      await userCategoryService.renameUserCategory(userId, userCat.id, newLabel);
+    } else if (item.label !== newLabel) {
+      // Library row missing (legacy / orphan) — fall back to per-plan rename so the
+      // current plan still gets updated.
       await prisma.$transaction([
-        prisma.planLineItem.update({
-          where: { id: itemId },
-          data: { label: newLabel },
-        }),
+        prisma.planLineItem.update({ where: { id: itemId }, data: { label: newLabel } }),
         prisma.transaction.updateMany({
           where: {
             import: { spendingPlanId: planId },
-            spendingSubcategory: oldLabel,
+            spendingSubcategory: item.label,
           },
           data: { spendingSubcategory: newLabel },
         }),

@@ -145,6 +145,34 @@ export function useUpdateTransactionType(planId: string) {
   });
 }
 
+/** Update a transaction's account type — optimistic update */
+export function useUpdateTransactionAccountType(planId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      transactionId,
+      accountType,
+    }: {
+      transactionId: string;
+      accountType: "credit_card" | "checking" | "savings" | null;
+    }) => api.patch(`/transactions/${transactionId}/account-type`, { accountType }),
+    onMutate: async ({ transactionId, accountType }) => {
+      await queryClient.cancelQueries({ queryKey: ["transactions", planId] });
+      const previous = queryClient.getQueryData<Transaction[]>(["transactions", planId]);
+      queryClient.setQueryData<Transaction[]>(
+        ["transactions", planId],
+        (old) => old?.map((t) => (t.id === transactionId ? { ...t, accountType } : t))
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["transactions", planId], context.previous);
+      }
+    },
+  });
+}
+
 /** Permanently delete all transactions for a plan */
 export function useDeleteAllTransactions(planId: string) {
   const queryClient = useQueryClient();

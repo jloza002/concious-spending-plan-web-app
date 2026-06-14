@@ -49,7 +49,12 @@ export function useUpdatePlan(planId: string) {
     mutationFn: (data: UpdatePlanInput) =>
       api.put<SpendingPlan>(`/plans/${planId}`, data),
     onSuccess: (data) => {
-      queryClient.setQueryData(["plan", planId], data);
+      // Preserve fields the user has edited while this request was in flight,
+      // otherwise the textarea snaps back to stale server text mid-typing.
+      queryClient.setQueryData<SpendingPlan>(["plan", planId], (old) => {
+        if (!old || Object.keys(pendingRef.current).length === 0) return data;
+        return { ...data, ...pendingRef.current };
+      });
     },
   });
 

@@ -55,6 +55,7 @@ export async function importTransactions(
             type: t.type,
             amount: t.amount,
             memo: t.memo || null,
+            accountType: t.accountType ?? null,
             isDuplicate: existingKeys.has(key),
           };
         }),
@@ -171,6 +172,7 @@ export async function getTransactions(planId: string, userId: string) {
       memo: t.memo,
       spendingCategory: t.spendingCategory,
       spendingSubcategory: t.spendingSubcategory,
+      accountType: t.accountType,
       isDuplicate: t.isDuplicate,
       isManual: t.isManual,
     }))
@@ -212,6 +214,7 @@ export async function getDeletedTransactions(planId: string, userId: string) {
       memo: t.memo,
       spendingCategory: t.spendingCategory,
       spendingSubcategory: t.spendingSubcategory,
+      accountType: t.accountType,
       isDuplicate: t.isDuplicate,
       isManual: t.isManual,
       deletedAt: t.deletedAt?.toISOString() ?? null,
@@ -245,6 +248,27 @@ export async function assignCategory(
   return prisma.transaction.update({
     where: { id: transactionId },
     data: { spendingCategory, spendingSubcategory },
+  });
+}
+
+/** Update a transaction's account type */
+export async function updateTransactionAccountType(
+  transactionId: string,
+  userId: string,
+  accountType: "credit_card" | "checking" | "savings" | null
+) {
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+    include: { import: { include: { spendingPlan: true } } },
+  });
+
+  if (!transaction || transaction.import.spendingPlan.userId !== userId) {
+    throw new AppError("Transaction not found", 404);
+  }
+
+  return prisma.transaction.update({
+    where: { id: transactionId },
+    data: { accountType },
   });
 }
 

@@ -46,6 +46,7 @@ model User {
   categoryMappings CategoryMapping[]
   refreshTokens    RefreshToken[]
   auditLogs        AuditLog[]
+  userCategories   UserCategory[]
 
   @@map("users")
 }
@@ -157,6 +158,7 @@ model SpendingPlan {
   includeMiscellaneous        Boolean  @default(true) @map("include_miscellaneous")
   notes                       String?  @db.Text
   customTransactionTypes      String[] @default([]) @map("custom_transaction_types")
+  isLocked                    Boolean  @default(false) @map("is_locked")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -216,6 +218,9 @@ model Transaction {
   spendingCategory    String? @map("spending_category") @db.VarChar(50)
   spendingSubcategory String? @map("spending_subcategory") @db.VarChar(255)
 
+  // Account type — 'credit_card', 'checking', or 'savings' (nullable for legacy rows)
+  accountType String? @map("account_type") @db.VarChar(20)
+
   // Flags
   isDuplicate Boolean @default(false) @map("is_duplicate")
   isManual    Boolean @default(false) @map("is_manual")
@@ -233,6 +238,22 @@ model Transaction {
 // ──────────────────────────────────────────
 // Category Memory
 // ──────────────────────────────────────────
+
+model UserCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  section   String   @db.VarChar(50) // 'fixed_costs', 'investments', 'savings'
+  label     String   @db.VarChar(255)
+  sortOrder Int      @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, section, label])
+  @@index([userId])
+  @@map("user_categories")
+}
 
 model CategoryMapping {
   id                    String   @id @default(uuid()) @db.Uuid
