@@ -15,6 +15,24 @@ import { NotesSection } from "@/components/plan/notes-section";
 import { MISCELLANEOUS_RATE } from "@csp/shared";
 import Link from "next/link";
 
+function LockIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  );
+}
+
+function UnlockIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+    </svg>
+  );
+}
+
 export default function PlanPage({
   params,
 }: {
@@ -119,26 +137,41 @@ export default function PlanPage({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          {plan.isLocked && (
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          {plan.isLocked ? (
             <span
-              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] uppercase tracking-wide font-semibold bg-amber-50 text-amber-700 border border-amber-200"
-              title="Locked plans aren't affected by library-wide category renames or deletes."
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"
+              title="This plan is finalized. It appears on your dashboard and is protected from category-library edits."
             >
-              <span aria-hidden>🔒</span> Locked
+              <LockIcon className="w-3.5 h-3.5" /> Locked &amp; on dashboard
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Draft — not on dashboard
             </span>
           )}
-          <button
-            type="button"
-            onClick={() => toggleLock.mutate(!plan.isLocked)}
-            disabled={toggleLock.isPending}
-            className="text-xs text-gray-500 hover:text-[#15302F] underline font-sans disabled:opacity-50"
-          >
-            {plan.isLocked ? "Unlock plan" : "Lock plan"}
-          </button>
+          <span className={`text-xs text-gray-400 font-sans transition-opacity duration-150 ${isSaving ? "opacity-100" : "opacity-0"}`}>Saving…</span>
         </div>
-        <span className={`text-xs text-gray-400 font-sans transition-opacity duration-150 ${isSaving ? "opacity-100" : "opacity-0"}`}>Saving...</span>
+        <button
+          type="button"
+          onClick={() => toggleLock.mutate(!plan.isLocked)}
+          disabled={toggleLock.isPending}
+          className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium font-sans shrink-0 transition-colors disabled:opacity-50 ${
+            plan.isLocked
+              ? "bg-white text-[#15302F] border border-gray-300 hover:bg-gray-50"
+              : "bg-[#15302F] text-[var(--color-warm-beige)] hover:bg-[#15302F]/90 shadow-sm"
+          }`}
+          title={plan.isLocked ? "Unlock to edit categories again" : "Lock to finalize this month and show it on the dashboard"}
+        >
+          {toggleLock.isPending ? (
+            "Saving…"
+          ) : plan.isLocked ? (
+            <><UnlockIcon className="w-4 h-4" /> Unlock plan</>
+          ) : (
+            <><LockIcon className="w-4 h-4" /> Lock plan</>
+          )}
+        </button>
       </div>
 
       <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
