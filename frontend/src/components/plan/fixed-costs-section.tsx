@@ -40,11 +40,15 @@ export function FixedCostsSection({
 }: FixedCostsSectionProps) {
   const range = SECTION_RANGES[PLAN_SECTIONS.FIXED_COSTS];
 
-  // Project each line item into a read-only row using the transaction-derived amount
-  const projected = items.map((item) => ({
-    ...item,
-    amount: categoryTotals[item.label] ?? 0,
-  }));
+  // Only show fixed-cost categories that are actually tied to categorized
+  // transactions. The full category list still lives on the line items (used by
+  // the transaction category dropdown); here we display the in-use ones only.
+  const projected = items
+    .filter((item) => categoryTotals[item.label] !== undefined)
+    .map((item) => ({
+      ...item,
+      amount: categoryTotals[item.label] ?? 0,
+    }));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),

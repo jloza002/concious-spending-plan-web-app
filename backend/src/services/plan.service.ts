@@ -53,16 +53,9 @@ export async function createPlan(
 
   let carriedGross = 0;
   let carriedNet = 0;
-  // (section|label) -> amount from the previous plan, for investments + savings
-  const carriedAmounts = new Map<string, number>();
   if (prevPlan) {
     carriedGross = Number(prevPlan.grossMonthlyIncome);
     carriedNet = Number(prevPlan.netMonthlyIncome);
-    for (const item of prevPlan.lineItems) {
-      if (item.section === "investments" || item.section === "savings") {
-        carriedAmounts.set(`${item.section}|${item.label}`, Number(item.amount));
-      }
-    }
   }
 
   if (copyFromPlanId) {
@@ -81,21 +74,41 @@ export async function createPlan(
       sortOrder: item.sortOrder,
     }));
   } else {
-    // Pull from the user's category library so new plans inherit the user's
-    // current categories rather than the hard-coded defaults, overlaying the
-    // previous month's investment/savings amounts where labels match.
     await ensureUserCategoryLibrary(userId);
     const library = await prisma.userCategory.findMany({
       where: { userId },
       orderBy: [{ section: "asc" }, { sortOrder: "asc" }],
     });
-    lineItemsToCreate = library.map((c) => ({
-      section: c.section,
-      label: c.label,
-      amount: carriedAmounts.get(`${c.section}|${c.label}`) ?? 0,
-      isDefault: true,
-      sortOrder: c.sortOrder,
-    }));
+
+    // Fixed-cost categories come from the user's library so the transaction
+    // category dropdown always has the full set to choose from.
+    const fixedCostItems = library
+      .filter((c) => c.section === "fixed_costs")
+      .map((c) => ({ section: c.section, label: c.label, amount: 0, isDefault: true, sortOrder: c.sortOrder }));
+
+    // Investments + savings goals are carried over from the PREVIOUS plan only
+    // (label + amount) — not the whole library — so a new plan doesn't surface
+    // every goal the user has ever created. Brand-new users (no prior plan)
+    // fall back to the library defaults for these sections.
+    let goalItems: typeof lineItemsToCreate;
+    const prevGoals = prevPlan?.lineItems.filter(
+      (i) => i.section === "investments" || i.section === "savings"
+    ) ?? [];
+    if (prevGoals.length > 0) {
+      goalItems = prevGoals.map((i) => ({
+        section: i.section,
+        label: i.label,
+        amount: Number(i.amount),
+        isDefault: i.isDefault,
+        sortOrder: i.sortOrder,
+      }));
+    } else {
+      goalItems = library
+        .filter((c) => c.section === "investments" || c.section === "savings")
+        .map((c) => ({ section: c.section, label: c.label, amount: 0, isDefault: true, sortOrder: c.sortOrder }));
+    }
+
+    lineItemsToCreate = [...fixedCostItems, ...goalItems];
   }
 
   const plan = await prisma.spendingPlan.create({

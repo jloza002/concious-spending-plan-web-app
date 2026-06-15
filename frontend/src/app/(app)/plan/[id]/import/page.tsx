@@ -1145,22 +1145,14 @@ export default function TransactionsPage({
     await manageType.mutateAsync({ action: "remove", type });
   }
 
-  async function handleImport(rows: CsvTransaction[], skippedDuplicates = 0) {
+  // Auto-categorize freshly imported transactions in the background. Kept
+  // separate from handleImport so the import modal can close as soon as the rows
+  // are inserted — categorization can take a while and must not block the modal.
+  async function categorizeImported(
+    newTxs: { id: string; description: string }[],
+    skippedDuplicates: number
+  ) {
     try {
-      const result = await importMutation.mutateAsync(rows) as { transactions: { id: string; description: string }[] };
-      const newTxs = result?.transactions ?? [];
-
-      // CRITICAL: await the refetch triggered by useImportTransactions.onSuccess
-      // before firing any assignCategory mutations. assignCategory.onMutate calls
-      // cancelQueries({ queryKey: ["transactions"] }) which would kill the in-flight
-      // refetch — leaving the new transactions invisible until the next page load.
-      await queryClient.refetchQueries({ queryKey: ["transactions", planId], exact: true });
-
-      if (newTxs.length === 0) {
-        setLastImportSummary({ imported: 0, categorized: 0, skippedDuplicates });
-        return;
-      }
-
       const descriptions = newTxs.map((t) => t.description);
       const suggestions = await autoCategorize.mutateAsync(descriptions) as Record<string, { spendingCategory: string; spendingSubcategory: string }>;
 
@@ -1176,8 +1168,30 @@ export default function TransactionsPage({
           categorized++;
         }
       }
-
       setLastImportSummary({ imported: newTxs.length, categorized, skippedDuplicates });
+    } catch {
+      // Insert already succeeded; leave the imported summary as-is if
+      // auto-categorization fails — the user can categorize manually.
+    }
+  }
+
+  async function handleImport(rows: CsvTransaction[], skippedDuplicates = 0) {
+    try {
+      const result = await importMutation.mutateAsync(rows) as { transactions: { id: string; description: string }[] };
+      const newTxs = result?.transactions ?? [];
+
+      // CRITICAL: await the refetch triggered by useImportTransactions.onSuccess
+      // before firing any assignCategory mutations. assignCategory.onMutate calls
+      // cancelQueries({ queryKey: ["transactions"] }) which would kill the in-flight
+      // refetch — leaving the new transactions invisible until the next page load.
+      await queryClient.refetchQueries({ queryKey: ["transactions", planId], exact: true });
+
+      // Show the insert result immediately and let the modal close. Auto-
+      // categorization continues in the background and updates the summary.
+      setLastImportSummary({ imported: newTxs.length, categorized: 0, skippedDuplicates });
+      if (newTxs.length > 0) {
+        void categorizeImported(newTxs, skippedDuplicates);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Import failed.";
       setLastImportSummary({ imported: 0, categorized: 0, skippedDuplicates, error: message });
@@ -1300,6 +1314,14 @@ export default function TransactionsPage({
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {/* Background auto-categorization indicator */}
+      {(autoCategorize.isPending || assignCategory.isPending) && (
+        <div className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-sans bg-blue-50 border border-blue-200 text-blue-700" role="status">
+          <span className="inline-block w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+          Auto-categorizing imported transactions…
         </div>
       )}
 
@@ -1548,7 +1570,7 @@ export default function TransactionsPage({
         <ImportModal
           onClose={() => setShowImport(false)}
           onImport={handleImport}
-          isImporting={importMutation.isPending || autoCategorize.isPending || assignCategory.isPending}
+          isImporting={importMutation.isPending}
           existingTransactions={transactions ?? []}
         />
       )}
