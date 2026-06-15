@@ -111,6 +111,13 @@ function LoginForm() {
           Create one
         </a>
       </p>
+
+      <p className="mt-3 text-center text-xs text-gray-400 font-sans">
+        New here?{" "}
+        <a href="/help" className="text-gray-500 hover:text-[var(--color-orange)] hover:underline">
+          Read the guide
+        </a>
+      </p>
     </div>
   );
 }

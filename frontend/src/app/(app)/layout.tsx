@@ -48,6 +48,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </Link>
               <NavLink href="/plans">Plans</NavLink>
               <NavLink href="/dashboard">Dashboard</NavLink>
+              <NavLink href="/help">Help</NavLink>
             </div>
 
             {/* Right: User + Sign Out */}
