@@ -135,6 +135,16 @@ export async function renameUserCategory(
       },
       data: { spendingSubcategory: newLabel },
     }),
+    // Keep memory keywords pointed at the new label so auto-categorize doesn't
+    // re-tag future transactions to the old (now non-existent) subcategory.
+    prisma.categoryMapping.updateMany({
+      where: {
+        userId,
+        spendingCategory: cat.section,
+        spendingSubcategory: oldLabel,
+      },
+      data: { spendingSubcategory: newLabel },
+    }),
   ]);
 
   return prisma.userCategory.findUnique({ where: { id: categoryId } });
@@ -172,6 +182,15 @@ export async function deleteUserCategory(userId: string, categoryId: string) {
         spendingPlanId: { in: unlockedIds },
         section: cat.section,
         label: cat.label,
+      },
+    }),
+    // Delete the category's memory keywords so auto-categorize never re-tags
+    // transactions to this deleted category (which would recreate orphans).
+    prisma.categoryMapping.deleteMany({
+      where: {
+        userId,
+        spendingCategory: cat.section,
+        spendingSubcategory: cat.label,
       },
     }),
     prisma.userCategory.delete({ where: { id: categoryId } }),

@@ -36,6 +36,23 @@ body {
   scrollbar-width: thin;
 }
 
+/* Rich-text notes (TipTap) — block spacing + nested list styles so indenting
+   a list visibly switches between numbers, letters, and roman numerals. */
+.notes-prose p { margin: 0.25rem 0; }
+.notes-prose h2 { font-size: 1.05rem; font-weight: 700; margin: 0.5rem 0 0.25rem; color: var(--color-dark-teal); }
+.notes-prose strong { font-weight: 700; }
+.notes-prose em { font-style: italic; }
+.notes-prose ul,
+.notes-prose ol { padding-left: 1.5rem; margin: 0.25rem 0; }
+.notes-prose ul { list-style-type: disc; }
+.notes-prose ul ul { list-style-type: circle; }
+.notes-prose ul ul ul { list-style-type: square; }
+.notes-prose ol { list-style-type: decimal; }
+.notes-prose ol ol { list-style-type: lower-alpha; }
+.notes-prose ol ol ol { list-style-type: lower-roman; }
+.notes-prose li { margin: 0.1rem 0; }
+.notes-prose:focus { outline: none; }
+
 /* Currency input - hide spinners */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {

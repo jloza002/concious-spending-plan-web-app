@@ -158,6 +158,7 @@ export async function listPlans(userId: string) {
       savingsPercentage: safePercent(savingsTotal),
       guiltFreePercentage: safePercent(guiltFreeTotal),
       guiltFreeTotal,
+      isLocked: plan.isLocked,
       updatedAt: plan.updatedAt.toISOString(),
     };
   });

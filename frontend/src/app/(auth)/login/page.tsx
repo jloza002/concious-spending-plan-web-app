@@ -30,7 +30,7 @@ function LoginForm() {
       setError("Invalid email or password");
       setIsLoading(false);
     } else {
-      router.push("/dashboard");
+      router.push("/plans");
     }
   }
 

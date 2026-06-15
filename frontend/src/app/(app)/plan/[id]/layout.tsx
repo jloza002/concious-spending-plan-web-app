@@ -54,8 +54,8 @@ export default function PlanLayout({
     <div>
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm font-sans text-gray-500 mb-3 sm:mb-4 no-print">
-        <Link href="/dashboard" className="hover:text-gray-800 transition-colors">
-          Dashboard
+        <Link href="/plans" className="hover:text-gray-800 transition-colors">
+          Plans
         </Link>
         <span>/</span>
         <span className="text-gray-800 font-medium">{planTitle}</span>

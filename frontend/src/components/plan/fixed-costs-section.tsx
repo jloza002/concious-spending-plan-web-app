@@ -46,12 +46,6 @@ export function FixedCostsSection({
     amount: categoryTotals[item.label] ?? 0,
   }));
 
-  // Subcategory totals from transactions that don't match any line item
-  const itemLabels = new Set(items.map((i) => i.label));
-  const orphans = Object.entries(categoryTotals)
-    .filter(([label]) => !itemLabels.has(label))
-    .sort(([a], [b]) => a.localeCompare(b));
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -81,7 +75,7 @@ export function FixedCostsSection({
         maxPercent={range.max / 100}
       />
 
-      {projected.length === 0 && orphans.length === 0 ? (
+      {projected.length === 0 ? (
         <div className="px-4 py-4 bg-white border-b border-gray-100 text-sm font-sans text-gray-400 italic">
           No fixed costs categorized yet. Categorize transactions on the Transactions tab.
         </div>
@@ -100,25 +94,6 @@ export function FixedCostsSection({
             ))}
           </SortableContext>
         </DndContext>
-      )}
-
-      {orphans.length > 0 && (
-        <>
-          {orphans.map(([label, amount]) => (
-            <div
-              key={`orphan:${label}`}
-              className="flex items-center justify-between px-4 py-2 bg-amber-50 border-b border-amber-100"
-              title="Subcategory used in transactions but not in this plan's categories"
-            >
-              <span className="text-sm font-sans text-amber-800 italic">
-                {label} <span className="text-[10px] uppercase tracking-wide">orphan</span>
-              </span>
-              <div className="w-28 sm:w-36 shrink-0">
-                <CurrencyInput value={amount} onChange={() => {}} readOnly />
-              </div>
-            </div>
-          ))}
-        </>
       )}
 
       {/* Miscellaneous (auto-calculated) */}
