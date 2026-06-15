@@ -1,5 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import {
+  WorkflowFigure,
+  CreatePlanFigure,
+  NetWorthFigure,
+  FixedCostsFigure,
+  TransactionsFigure,
+  CsvTemplateFigure,
+  DuplicatesFigure,
+  LockFigure,
+  DashboardFigure,
+  NotesFigure,
+} from "@/components/help/illustrations";
 
 export const metadata: Metadata = {
   title: "Help & Documentation — Conscious Spending Plan",
@@ -21,11 +33,22 @@ const SECTIONS = [
   { id: "faq", title: "Tips & FAQ" },
 ];
 
-function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+function Section({
+  id,
+  title,
+  figure,
+  children,
+}: {
+  id: string;
+  title: string;
+  figure?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <section id={id} className="scroll-mt-24">
       <h2 className="font-display text-2xl font-bold text-[var(--color-dark-teal)] mb-3">{title}</h2>
       <div className="space-y-3 text-[15px] leading-relaxed text-gray-700">{children}</div>
+      {figure && <figure className="mt-4 max-w-xl">{figure}</figure>}
     </section>
   );
 }
@@ -79,7 +102,7 @@ export default function HelpPage() {
 
           {/* Content */}
           <div className="space-y-10 min-w-0">
-            <Section id="getting-started" title="Getting started">
+            <Section id="getting-started" title="Getting started" figure={<WorkflowFigure />}>
               <p>
                 After you sign in you land on your <strong>Plans</strong> page — one card per month. The
                 workflow each month is simple:
@@ -93,7 +116,7 @@ export default function HelpPage() {
               </ol>
             </Section>
 
-            <Section id="creating-a-plan" title="Creating a plan">
+            <Section id="creating-a-plan" title="Creating a plan" figure={<CreatePlanFigure />}>
               <p>
                 On the Plans page, choose a month and year and create the plan. When a previous month exists,
                 the new plan automatically <strong>carries over your gross/net income and your investment and
@@ -105,7 +128,7 @@ export default function HelpPage() {
               </p>
             </Section>
 
-            <Section id="net-worth-income" title="Net worth & income">
+            <Section id="net-worth-income" title="Net worth & income" figure={<NetWorthFigure />}>
               <p>
                 At the top of a plan, enter your <strong>assets, investments, savings, and debt</strong> to
                 track net worth, and your <strong>gross and net monthly income</strong>. Net income is the
@@ -113,7 +136,7 @@ export default function HelpPage() {
               </p>
             </Section>
 
-            <Section id="fixed-costs" title="Fixed costs & categories">
+            <Section id="fixed-costs" title="Fixed costs & categories" figure={<FixedCostsFigure />}>
               <p>
                 Fixed costs (rent, utilities, groceries, subscriptions, etc.) are driven by your transactions.
                 The Fixed Costs section on the plan shows <strong>only the categories that have categorized
@@ -129,7 +152,7 @@ export default function HelpPage() {
               </p>
             </Section>
 
-            <Section id="transactions" title="Transactions & importing">
+            <Section id="transactions" title="Transactions & importing" figure={<TransactionsFigure />}>
               <p>
                 Open a plan&apos;s <strong>Transactions</strong> tab to import and categorize spending.
                 Click <strong>Import CSV</strong> and drop in a file exported from your bank, or use our
@@ -152,7 +175,7 @@ export default function HelpPage() {
               </p>
             </Section>
 
-            <Section id="csv-template" title="The CSV template">
+            <Section id="csv-template" title="The CSV template" figure={<CsvTemplateFigure />}>
               <p>
                 Inside the import dialog, click <strong>Download template</strong> to get a correctly formatted
                 CSV. Fill in your transactions and re-upload. The template columns are:
@@ -173,7 +196,7 @@ export default function HelpPage() {
               </p>
             </Section>
 
-            <Section id="duplicates" title="Duplicates & account types">
+            <Section id="duplicates" title="Duplicates & account types" figure={<DuplicatesFigure />}>
               <p>
                 Duplicate detection is <strong>scoped to the current plan only</strong>. If a transaction with
                 the same date, description, and amount already exists in <em>this</em> plan, the import dialog
@@ -191,7 +214,7 @@ export default function HelpPage() {
               </p>
             </Section>
 
-            <Section id="locking" title="Locking a plan">
+            <Section id="locking" title="Locking a plan" figure={<LockFigure />}>
               <p>
                 When a month is finished, open the plan and click <strong>Lock plan</strong>. Locking does two
                 things:
@@ -207,7 +230,7 @@ export default function HelpPage() {
               </p>
             </Section>
 
-            <Section id="dashboard" title="The dashboard">
+            <Section id="dashboard" title="The dashboard" figure={<DashboardFigure />}>
               <p>
                 The Dashboard summarizes your <strong>locked</strong> plans. Pick any month from the dropdown, and
                 switch the time range with <strong>Month / Year / All-time</strong>:
@@ -223,7 +246,7 @@ export default function HelpPage() {
               </p>
             </Section>
 
-            <Section id="notes" title="Notes">
+            <Section id="notes" title="Notes" figure={<NotesFigure />}>
               <p>
                 Every plan has a rich-text <strong>Notes</strong> section with a formatting toolbar — headings,
                 bold, italic, underline, strikethrough, and bulleted, numbered, or lettered lists. Use it for
