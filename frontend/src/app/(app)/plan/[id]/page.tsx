@@ -174,6 +174,13 @@ export default function PlanPage({
         </button>
       </div>
 
+      {toggleLock.isError && (
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 font-sans">
+          Couldn&apos;t {plan.isLocked ? "unlock" : "lock"} this plan: {toggleLock.error instanceof Error ? toggleLock.error.message : "request failed"}.
+          {" "}If this says &quot;not found&quot; or 404, the server may still be updating — try again shortly.
+        </div>
+      )}
+
       <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
         <NetWorthSection
           assets={plan.assets}
