@@ -20,6 +20,8 @@ import {
   ReferenceLine,
 } from "recharts";
 import { useRouter } from "next/navigation";
+import { GuidedTour } from "@/components/tour/guided-tour";
+import { DASHBOARD_TOUR } from "@/components/tour/tours";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -163,13 +165,14 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <GuidedTour tourId="dashboard" steps={DASHBOARD_TOUR} />
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-[var(--color-dark-teal)]">Dashboard</h1>
           <p className="text-sm text-gray-500 font-sans">Locked plans only</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap" data-tour="dash-period">
           <select
             value={selectedId ?? ""}
             onChange={(e) => setSelectedId(e.target.value)}
@@ -197,7 +200,7 @@ export default function DashboardPage() {
       <p className="text-xs text-gray-400 font-sans -mt-2">Showing: <span className="text-gray-600 font-medium">{periodLabel}</span></p>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="dash-kpis">
         <KpiCard label={period === "month" ? "Net Worth" : "Net Worth (latest)"} value={fmt(kpiNetWorth)} delta={showDeltas && previous ? fmt(netWorthDelta) : null} deltaPositive={netWorthDelta >= 0} />
         <KpiCard label={`Savings + Investments${period === "month" ? "" : " (avg)"}`} value={pct(kpiSavingsRate)} delta={showDeltas && previous ? `${savingsDelta >= 0 ? "+" : ""}${Math.round(savingsDelta * 100)}%` : null} deltaPositive={savingsDelta >= 0} />
         <KpiCard label={`Fixed Costs Share${period === "month" ? "" : " (avg)"}`} value={pct(kpiFixedPct)} subdued={kpiFixedPct > 0.6} delta={null} deltaPositive={false} />

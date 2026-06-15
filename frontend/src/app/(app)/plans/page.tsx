@@ -2,6 +2,8 @@
 
 import { usePlans, useCreatePlan, useDeletePlan } from "@/hooks/use-spending-plan";
 import { Button } from "@/components/ui/button";
+import { GuidedTour } from "@/components/tour/guided-tour";
+import { PLANS_TOUR } from "@/components/tour/tours";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -58,11 +60,14 @@ export default function PlansPage() {
 
   return (
     <div>
+      <GuidedTour tourId="plans" steps={PLANS_TOUR} />
       <div className="flex items-center justify-between mb-6 sm:mb-8">
         <h1 className="font-display text-2xl font-bold text-[var(--color-dark-teal)]">
           Your Spending Plans
         </h1>
-        <Button onClick={openModal}>+ New Plan</Button>
+        <span data-tour="new-plan">
+          <Button onClick={openModal}>+ New Plan</Button>
+        </span>
       </div>
 
       {/* Create Plan Modal */}

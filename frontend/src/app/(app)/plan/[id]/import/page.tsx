@@ -19,6 +19,8 @@ import {
   useDeleteAllTransactions,
 } from "@/hooks/use-transactions";
 import { Button } from "@/components/ui/button";
+import { GuidedTour } from "@/components/tour/guided-tour";
+import { TRANSACTIONS_TOUR } from "@/components/tour/tours";
 import type { CsvTransaction, Transaction } from "@csp/shared";
 
 const SECTION_LABELS: Record<string, string> = {
@@ -1218,6 +1220,7 @@ export default function TransactionsPage({
 
   return (
     <div className="space-y-6">
+      <GuidedTour tourId="transactions" steps={TRANSACTIONS_TOUR} />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -1256,13 +1259,15 @@ export default function TransactionsPage({
             </Button>
           )}
           {transactions && transactions.length > 0 && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setShowFilters((v) => !v)}
-            >
-              {showFilters ? "Hide Filters" : "Filters"}
-            </Button>
+            <span data-tour="tx-filters">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowFilters((v) => !v)}
+              >
+                {showFilters ? "Hide Filters" : "Filters"}
+              </Button>
+            </span>
           )}
           {transactions && transactions.length > 0 && uncategorizedCount > 0 && (
             <Button
@@ -1275,7 +1280,9 @@ export default function TransactionsPage({
             </Button>
           )}
           <Button variant="secondary" size="sm" onClick={() => setShowAddTransaction(true)}>+ Add Transaction</Button>
-          <Button onClick={() => setShowImport(true)}>Import CSV</Button>
+          <span data-tour="tx-import">
+            <Button onClick={() => setShowImport(true)}>Import CSV</Button>
+          </span>
         </div>
       </div>
 
