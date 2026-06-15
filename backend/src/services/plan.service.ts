@@ -39,6 +39,32 @@ export async function createPlan(
     sortOrder: number;
   }> = [];
 
+  // Carry-over from the chronologically previous plan: investment + savings
+  // amounts ("savings goals") and income. Fixed costs stay 0 because they are
+  // derived from imported transactions, not entered by hand.
+  const prevPlan = await prisma.spendingPlan.findFirst({
+    where: {
+      userId,
+      OR: [{ year: { lt: year } }, { year, month: { lt: month } }],
+    },
+    orderBy: [{ year: "desc" }, { month: "desc" }],
+    include: { lineItems: true },
+  });
+
+  let carriedGross = 0;
+  let carriedNet = 0;
+  // (section|label) -> amount from the previous plan, for investments + savings
+  const carriedAmounts = new Map<string, number>();
+  if (prevPlan) {
+    carriedGross = Number(prevPlan.grossMonthlyIncome);
+    carriedNet = Number(prevPlan.netMonthlyIncome);
+    for (const item of prevPlan.lineItems) {
+      if (item.section === "investments" || item.section === "savings") {
+        carriedAmounts.set(`${item.section}|${item.label}`, Number(item.amount));
+      }
+    }
+  }
+
   if (copyFromPlanId) {
     const sourcePlan = await prisma.spendingPlan.findFirst({
       where: { id: copyFromPlanId, userId },
@@ -56,7 +82,8 @@ export async function createPlan(
     }));
   } else {
     // Pull from the user's category library so new plans inherit the user's
-    // current categories rather than the hard-coded defaults.
+    // current categories rather than the hard-coded defaults, overlaying the
+    // previous month's investment/savings amounts where labels match.
     await ensureUserCategoryLibrary(userId);
     const library = await prisma.userCategory.findMany({
       where: { userId },
@@ -65,7 +92,7 @@ export async function createPlan(
     lineItemsToCreate = library.map((c) => ({
       section: c.section,
       label: c.label,
-      amount: 0,
+      amount: carriedAmounts.get(`${c.section}|${c.label}`) ?? 0,
       isDefault: true,
       sortOrder: c.sortOrder,
     }));
@@ -76,6 +103,10 @@ export async function createPlan(
       userId,
       month,
       year,
+      // Carry income forward (gross + net) unless this is an explicit copy,
+      // which already implies the user wants the source plan's structure.
+      grossMonthlyIncome: copyFromPlanId ? undefined : carriedGross,
+      netMonthlyIncome: copyFromPlanId ? undefined : carriedNet,
       lineItems: {
         create: lineItemsToCreate,
       },
