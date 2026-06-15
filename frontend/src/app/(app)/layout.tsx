@@ -8,9 +8,11 @@ import { usePathname } from "next/navigation";
 function NavLink({
   href,
   children,
+  dataTour,
 }: {
   href: string;
   children: React.ReactNode;
+  dataTour?: string;
 }) {
   const pathname = usePathname();
   const isActive = pathname === href || pathname.startsWith(href + "/");
@@ -18,6 +20,7 @@ function NavLink({
   return (
     <Link
       href={href}
+      data-tour={dataTour}
       className={`text-sm font-sans px-3 py-2 rounded-md transition-colors ${
         isActive
           ? "bg-white/20 text-white font-medium"
@@ -47,7 +50,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 CSP
               </Link>
               <NavLink href="/plans">Plans</NavLink>
-              <NavLink href="/dashboard">Dashboard</NavLink>
+              <NavLink href="/dashboard" dataTour="nav-dashboard">Dashboard</NavLink>
+              <NavLink href="/help" dataTour="nav-help">Help</NavLink>
             </div>
 
             {/* Right: User + Sign Out */}

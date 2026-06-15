@@ -20,6 +20,8 @@ import {
   ReferenceLine,
 } from "recharts";
 import { useRouter } from "next/navigation";
+import { GuidedTour } from "@/components/tour/guided-tour";
+import { DASHBOARD_TOUR } from "@/components/tour/tours";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -114,16 +116,44 @@ export default function DashboardPage() {
     id: p.id,
   }));
 
-  // KPIs reflect the selected month
-  const kpiNetWorth = selected?.totalNetWorth ?? 0;
-  const kpiSavingsRate = (selected?.investmentsPercentage ?? 0) + (selected?.savingsPercentage ?? 0);
-  const kpiGuiltFree = selected?.guiltFreeTotal ?? 0;
-  const kpiFixedPct = selected?.fixedCostsPercentage ?? 0;
+  // KPIs aggregate over the selected period. Net worth is point-in-time (latest
+  // in range), rates are averaged, and guilt-free budget is summed for the range.
+  const kpiPlans =
+    period === "all"
+      ? lockedPlans
+      : period === "year"
+      ? lockedPlans.filter((p) => p.year === (selected?.year ?? 0))
+      : selected
+      ? [selected]
+      : [];
+  const avg = (nums: number[]) => (nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0);
 
-  const netWorthDelta = previous && selected ? (selected.totalNetWorth ?? 0) - (previous.totalNetWorth ?? 0) : 0;
-  const savingsDelta = previous && selected
+  const latestInRange = kpiPlans.length ? kpiPlans[kpiPlans.length - 1] : selected;
+  const kpiNetWorth = latestInRange?.totalNetWorth ?? 0;
+  const kpiSavingsRate = avg(kpiPlans.map((p) => (p.investmentsPercentage ?? 0) + (p.savingsPercentage ?? 0)));
+  const kpiFixedPct = avg(kpiPlans.map((p) => p.fixedCostsPercentage ?? 0));
+  const kpiGuiltFree =
+    period === "month"
+      ? selected?.guiltFreeTotal ?? 0
+      : kpiPlans.reduce((s, p) => s + (p.guiltFreeTotal ?? 0), 0);
+
+  // Month-over-month deltas only make sense in single-month view.
+  const showDeltas = period === "month";
+  const netWorthDelta = showDeltas && previous && selected ? (selected.totalNetWorth ?? 0) - (previous.totalNetWorth ?? 0) : 0;
+  const savingsDelta = showDeltas && previous && selected
     ? (((selected.investmentsPercentage ?? 0) + (selected.savingsPercentage ?? 0)) - ((previous.investmentsPercentage ?? 0) + (previous.savingsPercentage ?? 0)))
     : 0;
+
+  const monthCount = kpiPlans.length;
+  const periodLabel =
+    period === "month"
+      ? selected
+        ? `${MONTH_NAMES[selected.month - 1]} ${selected.year}`
+        : ""
+      : period === "year"
+      ? `${selected?.year ?? ""} · ${monthCount} locked month${monthCount === 1 ? "" : "s"}`
+      : `All time · ${monthCount} locked month${monthCount === 1 ? "" : "s"}`;
+  const aggSuffix = period === "month" ? "" : period === "year" ? " (this year)" : " (all time)";
 
   const handleChartClick = (state: unknown) => {
     const payload = (state as { activePayload?: Array<{ payload?: { id?: string } }> } | undefined)
@@ -135,13 +165,14 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <GuidedTour tourId="dashboard" steps={DASHBOARD_TOUR} />
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-[var(--color-dark-teal)]">Dashboard</h1>
           <p className="text-sm text-gray-500 font-sans">Locked plans only</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap" data-tour="dash-period">
           <select
             value={selectedId ?? ""}
             onChange={(e) => setSelectedId(e.target.value)}
@@ -165,12 +196,15 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Period context */}
+      <p className="text-xs text-gray-400 font-sans -mt-2">Showing: <span className="text-gray-600 font-medium">{periodLabel}</span></p>
+
       {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Net Worth" value={fmt(kpiNetWorth)} delta={previous ? fmt(netWorthDelta) : null} deltaPositive={netWorthDelta >= 0} />
-        <KpiCard label="Savings + Investments" value={pct(kpiSavingsRate)} delta={previous ? `${savingsDelta >= 0 ? "+" : ""}${Math.round(savingsDelta * 100)}%` : null} deltaPositive={savingsDelta >= 0} />
-        <KpiCard label="Fixed Costs Share" value={pct(kpiFixedPct)} subdued={kpiFixedPct > 0.6} delta={null} deltaPositive={false} />
-        <KpiCard label="Guilt-Free Budget" value={fmt(kpiGuiltFree)} delta={null} deltaPositive={kpiGuiltFree >= 0} danger={kpiGuiltFree < 0} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="dash-kpis">
+        <KpiCard label={period === "month" ? "Net Worth" : "Net Worth (latest)"} value={fmt(kpiNetWorth)} delta={showDeltas && previous ? fmt(netWorthDelta) : null} deltaPositive={netWorthDelta >= 0} />
+        <KpiCard label={`Savings + Investments${period === "month" ? "" : " (avg)"}`} value={pct(kpiSavingsRate)} delta={showDeltas && previous ? `${savingsDelta >= 0 ? "+" : ""}${Math.round(savingsDelta * 100)}%` : null} deltaPositive={savingsDelta >= 0} />
+        <KpiCard label={`Fixed Costs Share${period === "month" ? "" : " (avg)"}`} value={pct(kpiFixedPct)} subdued={kpiFixedPct > 0.6} delta={null} deltaPositive={false} />
+        <KpiCard label={`Guilt-Free Budget${aggSuffix}`} value={fmt(kpiGuiltFree)} delta={null} deltaPositive={kpiGuiltFree >= 0} danger={kpiGuiltFree < 0} />
       </div>
 
       {/* Period context note */}

@@ -13,6 +13,8 @@ import { SavingsSection } from "@/components/plan/savings-section";
 import { GuiltFreeSection } from "@/components/plan/guilt-free-section";
 import { NotesSection } from "@/components/plan/notes-section";
 import { MISCELLANEOUS_RATE } from "@csp/shared";
+import { GuidedTour } from "@/components/tour/guided-tour";
+import { PLAN_TOUR } from "@/components/tour/tours";
 import Link from "next/link";
 
 function LockIcon({ className }: { className?: string }) {
@@ -137,6 +139,7 @@ export default function PlanPage({
 
   return (
     <div>
+      <GuidedTour tourId="plan" steps={PLAN_TOUR} />
       <div className="flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-2 min-w-0">
           {plan.isLocked ? (
@@ -155,6 +158,7 @@ export default function PlanPage({
         </div>
         <button
           type="button"
+          data-tour="plan-lock"
           onClick={() => toggleLock.mutate(!plan.isLocked)}
           disabled={toggleLock.isPending}
           className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium font-sans shrink-0 transition-colors disabled:opacity-50 ${
