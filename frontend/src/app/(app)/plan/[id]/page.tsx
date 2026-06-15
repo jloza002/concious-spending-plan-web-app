@@ -30,21 +30,28 @@ export default function PlanPage({
   const { data: transactions } = useTransactions(planId);
   const toggleLock = useTogglePlanLock(planId);
 
-  // Aggregate transaction amounts by fixed_costs subcategory
+  // Aggregate transaction amounts by fixed_costs subcategory.
+  // Only count subcategories that still exist as line items in this plan — a
+  // transaction tagged to a deleted category is treated as uncategorized (it
+  // drops out of fixed costs) rather than surfacing as an orphan row.
   const fixedCategoryTotals = useMemo<Record<string, number>>(() => {
-    if (!transactions) return {};
+    if (!transactions || !plan) return {};
+    const validLabels = new Set(
+      plan.lineItems.filter((i) => i.section === "fixed_costs").map((i) => i.label)
+    );
     const totals: Record<string, number> = {};
     for (const t of transactions) {
       if (
         t.spendingCategory !== "fixed_costs" ||
         !t.spendingSubcategory ||
+        !validLabels.has(t.spendingSubcategory) ||
         t.isDuplicate ||
         t.type === "Payment"
       ) continue;
       totals[t.spendingSubcategory] = (totals[t.spendingSubcategory] ?? 0) + (-t.amount);
     }
     return totals;
-  }, [transactions]);
+  }, [transactions, plan]);
 
   // Override plan calculations with transaction-based fixed costs
   const calculations = useMemo(() => {
@@ -77,7 +84,7 @@ export default function PlanPage({
   if (error || !plan || !calculations) {
     return (
       <div className="text-center py-12 text-red-500 font-sans">
-        Failed to load plan. <Link href="/dashboard" className="underline">Back to dashboard</Link>
+        Failed to load plan. <Link href="/plans" className="underline">Back to plans</Link>
       </div>
     );
   }

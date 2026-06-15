@@ -41,11 +41,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {/* Left: Logo + Nav Links */}
             <div className="flex items-center gap-2">
               <Link
-                href="/dashboard"
+                href="/plans"
                 className="font-display text-lg font-bold hover:opacity-80 transition-opacity mr-3"
               >
                 CSP
               </Link>
+              <NavLink href="/plans">Plans</NavLink>
               <NavLink href="/dashboard">Dashboard</NavLink>
             </div>
 

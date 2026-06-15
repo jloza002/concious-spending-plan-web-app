@@ -20,9 +20,11 @@ export async function importTransactions(
     throw new AppError("Spending plan not found", 404);
   }
 
-  // Build a set of existing transaction keys to detect duplicates
+  // Build a set of existing transaction keys to detect duplicates.
+  // Scoped strictly to THIS plan and excludes soft-deleted rows so a deleted +
+  // re-imported transaction isn't permanently flagged as a duplicate.
   const existing = await prisma.transaction.findMany({
-    where: { import: { spendingPlanId: planId } },
+    where: { import: { spendingPlanId: planId }, deletedAt: null },
     select: { transactionDate: true, description: true, amount: true },
   });
   const existingKeys = new Set(

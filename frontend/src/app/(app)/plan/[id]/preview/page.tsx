@@ -222,7 +222,10 @@ export default function PreviewPage({
         {plan.notes && (
           <div className="px-4 sm:px-6 py-4">
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 font-sans">Notes</h3>
-            <p className="text-sm text-gray-600 font-sans whitespace-pre-wrap">{plan.notes}</p>
+            <div
+              className="notes-prose text-sm text-gray-600 font-sans"
+              dangerouslySetInnerHTML={{ __html: plan.notes }}
+            />
           </div>
         )}
       </div>

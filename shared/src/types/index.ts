@@ -100,6 +100,7 @@ export interface PlanSummary {
   savingsPercentage: number;
   guiltFreePercentage: number;
   guiltFreeTotal: number;
+  isLocked: boolean;
   updatedAt: string;
 }
 

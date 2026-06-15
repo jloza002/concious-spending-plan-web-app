@@ -98,14 +98,16 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
     setDeletingId(null);
   }
 
-  const currentLabel =
-    transaction.spendingSubcategory ||
-    (transaction.spendingCategory ? SECTION_LABELS[transaction.spendingCategory] ?? transaction.spendingCategory : "");
-  const isCategorized = !!transaction.spendingCategory;
-  // Orphaned: has a subcategory that no longer exists in this plan's line items
+  // A transaction tagged to a subcategory that no longer exists in this plan is
+  // treated as uncategorized — no orphan styling, it just reads "Uncategorized".
   const isOrphaned =
     !!transaction.spendingSubcategory &&
     !categories.some((c) => c.label === transaction.spendingSubcategory);
+  const currentLabel = isOrphaned
+    ? ""
+    : transaction.spendingSubcategory ||
+      (transaction.spendingCategory ? SECTION_LABELS[transaction.spendingCategory] ?? transaction.spendingCategory : "");
+  const isCategorized = !!transaction.spendingCategory && !isOrphaned;
 
   if (isAdding) {
     return (
@@ -142,16 +144,13 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
         type="button"
         onClick={handleToggle}
         className={`w-full text-xs text-left rounded px-2 py-1.5 font-sans focus:outline-none flex items-center justify-between gap-1 transition-colors ${
-          isOrphaned
-            ? "bg-amber-50 text-amber-700 border border-amber-300 font-medium"
-            : isCategorized
+          isCategorized
             ? "bg-[#15302F]/10 text-[#15302F] border border-[#15302F]/20 font-medium"
             : "border border-gray-200 text-gray-400 bg-white hover:border-gray-300"
         }`}
-        title={isOrphaned ? "Category no longer exists in this plan — click to reassign" : undefined}
       >
         <span className="truncate">{currentLabel || "Uncategorized"}</span>
-        <span className="text-[10px] opacity-50 shrink-0">{isOrphaned ? "⚠" : "▾"}</span>
+        <span className="text-[10px] opacity-50 shrink-0">▾</span>
       </button>
 
       {open && (
@@ -583,13 +582,13 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
               )}
 
               <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg">
-                <table className="w-full text-sm font-sans">
-                  <thead className="bg-[#15302F] sticky top-0">
+                <table className="w-full text-sm font-sans border-collapse">
+                  <thead className="sticky top-0 z-10">
                     <tr>
-                      <th className="w-8 px-2 py-2"></th>
-                      <th className="text-left px-3 py-2 text-[var(--color-warm-beige)] text-xs font-medium">Date</th>
-                      <th className="text-left px-3 py-2 text-[var(--color-warm-beige)] text-xs font-medium">Description</th>
-                      <th className="text-right px-3 py-2 text-[var(--color-warm-beige)] text-xs font-medium">Amount</th>
+                      <th className="w-8 px-2 py-2 bg-[#15302F]"></th>
+                      <th className="text-left px-3 py-2 text-[var(--color-warm-beige)] text-xs font-medium bg-[#15302F]">Date</th>
+                      <th className="text-left px-3 py-2 text-[var(--color-warm-beige)] text-xs font-medium bg-[#15302F]">Description</th>
+                      <th className="text-right px-3 py-2 text-[var(--color-warm-beige)] text-xs font-medium bg-[#15302F]">Amount</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -601,8 +600,8 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
                           key={i}
                           className={
                             isDup
-                              ? (keep ? "bg-amber-50/80" : "bg-amber-50 opacity-60")
-                              : i % 2 === 0 ? "bg-white" : "bg-[#F5EEE4]"
+                              ? (keep ? "bg-amber-100 text-gray-700" : "bg-amber-50 text-gray-400")
+                              : i % 2 === 0 ? "bg-white text-gray-700" : "bg-[#F5EEE4] text-gray-700"
                           }
                         >
                           <td className="w-8 px-2 py-1.5 text-center">
