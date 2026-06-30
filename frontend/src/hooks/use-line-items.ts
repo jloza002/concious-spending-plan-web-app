@@ -108,14 +108,31 @@ export function useRenameCategory(planId: string) {
   });
 }
 
-/** Delete a line item */
+/** Delete a line item — optimistic so the open category dropdown updates instantly */
 export function useDeleteLineItem(planId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (itemId: string) =>
       api.delete<SpendingPlan>(`/plans/${planId}/items/${itemId}`),
+    // Remove the line item from the cache synchronously, inside the click
+    // handler, so the dropdown reflects the deletion immediately. Doing it only
+    // in onSuccess (after the network round-trip, in a microtask) painted late
+    // and made the row look like it "didn't delete".
+    onMutate: async (itemId) => {
+      await queryClient.cancelQueries({ queryKey: ["plan", planId] });
+      const previous = queryClient.getQueryData<SpendingPlan>(["plan", planId]);
+      queryClient.setQueryData<SpendingPlan>(["plan", planId], (old) =>
+        old ? { ...old, lineItems: old.lineItems.filter((i) => i.id !== itemId) } : old
+      );
+      return { previous };
+    },
+    onError: (_err, _itemId, context) => {
+      if (context?.previous) queryClient.setQueryData(["plan", planId], context.previous);
+    },
     onSuccess: (data) => {
       queryClient.setQueryData(["plan", planId], data);
+      // A deleted category clears matching transactions server-side.
+      queryClient.invalidateQueries({ queryKey: ["transactions", planId] });
     },
   });
 }
