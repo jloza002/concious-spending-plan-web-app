@@ -42,6 +42,14 @@ export async function importTransactions(
     throw new AppError("No valid transactions found — all rows had invalid dates", 400);
   }
 
+  // Auto-categorize server-side, in one pass against the user's category memory.
+  // This replaces the old client flow that fired one PUT per transaction
+  // sequentially — for large imports that was hundreds of round-trips.
+  const suggestions = await autoCategorize(
+    userId,
+    validTransactions.map((t) => t.description)
+  );
+
   const importRecord = await prisma.transactionImport.create({
     data: {
       spendingPlanId: planId,
@@ -49,6 +57,7 @@ export async function importTransactions(
         create: validTransactions.map((t) => {
           const key = `${new Date(t.transactionDate).toISOString().split("T")[0]}|${t.description}|${t.amount}`;
           const postDate = new Date(t.postDate);
+          const match = suggestions.get(t.description);
           return {
             transactionDate: new Date(t.transactionDate),
             postDate: isNaN(postDate.getTime()) ? new Date(t.transactionDate) : postDate,
@@ -59,6 +68,8 @@ export async function importTransactions(
             memo: t.memo || null,
             accountType: t.accountType ?? null,
             isDuplicate: existingKeys.has(key),
+            spendingCategory: match?.spendingCategory ?? null,
+            spendingSubcategory: match?.spendingSubcategory ?? null,
           };
         }),
       },
