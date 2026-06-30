@@ -1,6 +1,7 @@
 "use client";
 
-import { use, useState, useMemo, useRef, useEffect } from "react";
+import { use, useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import Papa from "papaparse";
 import { usePlan, useManageTransactionType } from "@/hooks/use-spending-plan";
@@ -48,9 +49,11 @@ interface CategorySelectProps {
   locked?: boolean;
 }
 
+type MenuPos = { left: number; width: number; top?: number; bottom?: number };
+
 function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, onRename, locked = false }: CategorySelectProps) {
   const [open, setOpen] = useState(false);
-  const [dropUp, setDropUp] = useState(false);
+  const [menuPos, setMenuPos] = useState<MenuPos | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
@@ -60,26 +63,51 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
   const [renameValue, setRenameValue] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // The menu is rendered in a portal with fixed positioning so it never grows
+  // the table's scroll container (which would add a scrollbar and flicker).
+  const computeMenuPos = useCallback((): MenuPos | null => {
+    const btn = buttonRef.current;
+    if (!btn) return null;
+    const rect = btn.getBoundingClientRect();
+    const WIDTH = 288;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - WIDTH - 8));
+    const dropUp = window.innerHeight - rect.bottom < 300;
+    return dropUp
+      ? { left, width: WIDTH, bottom: window.innerHeight - rect.top + 4 }
+      : { left, width: WIDTH, top: rect.bottom + 4 };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
     function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setEditMode(false);
-        setRenamingId(null);
-      }
+      const target = e.target as Node;
+      if (dropdownRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+      setEditMode(false);
+      setRenamingId(null);
+    }
+    function reposition() {
+      setMenuPos(computeMenuPos());
     }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [open, computeMenuPos]);
 
   function handleToggle() {
-    if (!open && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setDropUp(window.innerHeight - rect.bottom < 280);
+    if (!open) {
+      setMenuPos(computeMenuPos());
+    } else {
+      setEditMode(false);
+      setRenamingId(null);
     }
-    if (open) { setEditMode(false); setRenamingId(null); }
     setOpen((v) => !v);
   }
 
@@ -155,8 +183,12 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
         <span className="text-[10px] opacity-50 shrink-0">▾</span>
       </button>
 
-      {open && (
-        <div className={`absolute z-50 left-0 w-72 bg-white border border-gray-300 rounded-lg shadow-2xl ring-1 ring-black/5 overflow-hidden ${dropUp ? "bottom-full mb-1" : "mt-1"}`}>
+      {open && menuPos && createPortal(
+        <div
+          ref={menuRef}
+          style={{ position: "fixed", left: menuPos.left, top: menuPos.top, bottom: menuPos.bottom, width: menuPos.width }}
+          className="z-[60] bg-white border border-gray-300 rounded-lg shadow-2xl ring-1 ring-black/5 overflow-hidden"
+        >
           {/* Scrollable category list */}
           <div className="max-h-56 overflow-y-auto" style={{ scrollbarGutter: "stable" }}>
             <button
@@ -270,7 +302,8 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
             )}
           </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -291,6 +324,8 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
   const [isDragging, setIsDragging] = useState(false);
   // For each parsed row at index i, has the user opted to import it even if flagged as a duplicate?
   const [keepDuplicate, setKeepDuplicate] = useState<Record<number, boolean>>({});
+  // Account type to apply to the whole import. "" keeps each row's value from the CSV.
+  const [importAccount, setImportAccount] = useState<"" | "credit_card" | "checking" | "savings">("");
 
   // Flag each parsed row as duplicate based on existing transactions in the plan
   const rowIsDuplicate = useMemo(() => {
@@ -438,8 +473,13 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
 
   async function handleImport() {
     if (rowsToImport.length === 0) return;
+    // When an account type is chosen, apply it to every imported row (overrides
+    // any Account Type column in the CSV).
+    const rows = importAccount
+      ? rowsToImport.map((r) => ({ ...r, accountType: importAccount }))
+      : rowsToImport;
     try {
-      await onImport(rowsToImport, skipCount);
+      await onImport(rows, skipCount);
       onClose();
     } catch {
       // parent has already shown the error in the summary banner
@@ -551,6 +591,23 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
                 >
                   Change file
                 </button>
+              </div>
+
+              <div className="mb-3 flex items-center gap-2 flex-wrap">
+                <label className="text-xs font-medium text-gray-600 font-sans">Account type for this import:</label>
+                <select
+                  value={importAccount}
+                  onChange={(e) => setImportAccount(e.target.value as typeof importAccount)}
+                  className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-sans bg-white focus:outline-none focus:border-[var(--color-orange)]"
+                >
+                  <option value="">Use values from file</option>
+                  <option value="credit_card">Credit Card</option>
+                  <option value="checking">Checking Account</option>
+                  <option value="savings">Savings Account</option>
+                </select>
+                {importAccount && (
+                  <span className="text-[11px] text-gray-400 font-sans">applied to all {rowsToImport.length} rows</span>
+                )}
               </div>
 
               {duplicateCount > 0 && (
@@ -1147,53 +1204,18 @@ export default function TransactionsPage({
     await manageType.mutateAsync({ action: "remove", type });
   }
 
-  // Auto-categorize freshly imported transactions in the background. Kept
-  // separate from handleImport so the import modal can close as soon as the rows
-  // are inserted — categorization can take a while and must not block the modal.
-  async function categorizeImported(
-    newTxs: { id: string; description: string }[],
-    skippedDuplicates: number
-  ) {
-    try {
-      const descriptions = newTxs.map((t) => t.description);
-      const suggestions = await autoCategorize.mutateAsync(descriptions) as Record<string, { spendingCategory: string; spendingSubcategory: string }>;
-
-      let categorized = 0;
-      for (const t of newTxs) {
-        const s = suggestions[t.description];
-        if (s) {
-          await assignCategory.mutateAsync({
-            transactionId: t.id,
-            spendingCategory: s.spendingCategory,
-            spendingSubcategory: s.spendingSubcategory,
-          });
-          categorized++;
-        }
-      }
-      setLastImportSummary({ imported: newTxs.length, categorized, skippedDuplicates });
-    } catch {
-      // Insert already succeeded; leave the imported summary as-is if
-      // auto-categorization fails — the user can categorize manually.
-    }
-  }
-
   async function handleImport(rows: CsvTransaction[], skippedDuplicates = 0) {
     try {
-      const result = await importMutation.mutateAsync(rows) as { transactions: { id: string; description: string }[] };
+      // The backend auto-categorizes during import (one pass against the user's
+      // memory) so the returned rows already carry their categories — no
+      // per-transaction follow-up requests needed.
+      const result = await importMutation.mutateAsync(rows) as { transactions: Transaction[] };
       const newTxs = result?.transactions ?? [];
 
-      // CRITICAL: await the refetch triggered by useImportTransactions.onSuccess
-      // before firing any assignCategory mutations. assignCategory.onMutate calls
-      // cancelQueries({ queryKey: ["transactions"] }) which would kill the in-flight
-      // refetch — leaving the new transactions invisible until the next page load.
       await queryClient.refetchQueries({ queryKey: ["transactions", planId], exact: true });
 
-      // Show the insert result immediately and let the modal close. Auto-
-      // categorization continues in the background and updates the summary.
-      setLastImportSummary({ imported: newTxs.length, categorized: 0, skippedDuplicates });
-      if (newTxs.length > 0) {
-        void categorizeImported(newTxs, skippedDuplicates);
-      }
+      const categorized = newTxs.filter((t) => !!t.spendingCategory).length;
+      setLastImportSummary({ imported: newTxs.length, categorized, skippedDuplicates });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Import failed.";
       setLastImportSummary({ imported: 0, categorized: 0, skippedDuplicates, error: message });
