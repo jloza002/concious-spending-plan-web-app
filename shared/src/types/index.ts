@@ -51,6 +51,7 @@ export interface PlanLineItem {
   label: string;
   amount: number;
   isDefault: boolean;
+  excluded: boolean;
   sortOrder: number;
 }
 

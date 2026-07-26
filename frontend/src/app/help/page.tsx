@@ -150,6 +150,12 @@ export default function HelpPage() {
                 You manage the master list of categories from the transaction <strong>category dropdown</strong>
                 (see below). Categories are personal to your account and shared across your plans.
               </p>
+              <p>
+                <strong>Excluding a line (what-if):</strong> click the eye icon on any Fixed Costs or Savings
+                line to exclude it. The line turns transparent and drops out of that section&apos;s total, so your
+                guilt-free budget updates immediately — handy for testing &quot;what if I cut this category?&quot;.
+                Click the icon again to include it. Exclusions are saved on the plan and don&apos;t delete anything.
+              </p>
             </Section>
 
             <Section id="transactions" title="Transactions & importing" figure={<TransactionsFigure />}>
@@ -164,9 +170,15 @@ export default function HelpPage() {
                 other <em>unlocked</em> plans; locked plans are never changed.
               </p>
               <p>
+                In the import dialog you can set the <strong>Account type</strong> for the whole batch (Credit
+                Card / Checking / Savings) and tell the app <strong>how amounts are shown</strong> in your file:
+                purchases as negative (e.g. Chase), purchases as positive, or a separate Debit / Credit column
+                layout. The preview marks income rows green with a <span className="text-green-600 font-medium">+</span>
+                so you can confirm before importing. Your choice is remembered per account type.
+              </p>
+              <p>
                 The app <strong>auto-categorizes</strong> imported transactions using what it has learned from
-                your past choices. After an import, categorization runs in the background — you&apos;ll see an
-                &quot;Auto-categorizing…&quot; indicator, and you can keep working while it finishes.
+                your past choices — this happens server-side during import, so rows come back already categorized.
               </p>
               <p>
                 Use the <strong>Filters</strong> button to search by description, date range, category, account
@@ -186,7 +198,7 @@ export default function HelpPage() {
                 <li><strong>Description</strong> — the merchant or payee</li>
                 <li><strong>Category</strong> — optional original category from your bank</li>
                 <li><strong>Type</strong> — Sale, Return, Payment, Adjustment, Debit, or Credit</li>
-                <li><strong>Amount</strong> — negative for spending, positive for income/refunds</li>
+                <li><strong>Amount</strong> — negative for spending, positive for income/refunds. If your bank does it the other way around, pick the matching option in the import dialog and the app flips it for you.</li>
                 <li><strong>Account Type</strong> — Credit Card, Checking Account, or Savings Account</li>
                 <li><strong>Memo</strong> — optional note</li>
               </ul>
@@ -261,6 +273,9 @@ export default function HelpPage() {
                 memory keywords tied to it, so it won&apos;t be re-applied to future imports.</p>
               <p><strong>Why is a plan missing from the dashboard?</strong> Only locked plans appear. Open it and
                 click <em>Lock plan</em>.</p>
+              <p><strong>Why was I signed out?</strong> For security, your session ends after about an hour of
+                inactivity. You&apos;ll get a &quot;Still there?&quot; warning with a countdown first — click
+                <em> Stay signed in</em> to continue. If it lapses, just sign in again.</p>
               <p><strong>Is my data private?</strong> Your categories, plans, and transactions are tied to your
                 account and are not visible to other users.</p>
             </Section>

@@ -34,6 +34,7 @@ export const updateLineItemSchema = z.object({
   label: z.string().min(1).max(255).optional(),
   amount: z.number().optional(),
   sortOrder: z.number().int().optional(),
+  excluded: z.boolean().optional(),
 });
 
 /** Reorder request: array of { id, sortOrder } */

@@ -27,6 +27,7 @@ interface FixedCostsSectionProps {
   calculations: PlanCalculations;
   includeMiscellaneous: boolean;
   onDeleteMiscellaneous: () => void;
+  onToggleExclude: (id: string, excluded: boolean) => void;
   onReorder: (items: { id: string; sortOrder: number }[]) => void;
 }
 
@@ -36,6 +37,7 @@ export function FixedCostsSection({
   calculations,
   includeMiscellaneous,
   onDeleteMiscellaneous,
+  onToggleExclude,
   onReorder,
 }: FixedCostsSectionProps) {
   const range = SECTION_RANGES[PLAN_SECTIONS.FIXED_COSTS];
@@ -86,13 +88,15 @@ export function FixedCostsSection({
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={projected.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-            {projected.map((item) => (
+            {projected.map((item, i) => (
               <SortableLineItem
                 key={item.id}
                 item={item}
                 onAmountChange={() => {}}
                 onLabelChange={() => {}}
                 onDelete={() => {}}
+                onToggleExclude={onToggleExclude}
+                excludeTourAnchor={i === 0}
                 readOnly
               />
             ))}

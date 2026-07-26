@@ -161,6 +161,15 @@ export async function listPlans(userId: string) {
 
   const planIds = plans.map((p) => p.id);
 
+  // Excluded fixed-cost category labels per plan — their transactions must not
+  // count toward the fixed-cost subtotal (per-line "what-if" exclusion).
+  const excludedFixedByPlan: Record<string, Set<string>> = {};
+  for (const plan of plans) {
+    excludedFixedByPlan[plan.id] = new Set(
+      plan.lineItems.filter((i) => i.section === "fixed_costs" && i.excluded).map((i) => i.label)
+    );
+  }
+
   // Aggregate transaction-based fixed costs per plan
   const txns = await prisma.transaction.findMany({
     where: {
@@ -169,12 +178,13 @@ export async function listPlans(userId: string) {
       isDuplicate: false,
       NOT: { type: "Payment" },
     },
-    select: { amount: true, import: { select: { spendingPlanId: true } } },
+    select: { amount: true, spendingSubcategory: true, import: { select: { spendingPlanId: true } } },
   });
 
   const fcSubtotalByPlan: Record<string, number> = {};
   for (const t of txns) {
     const pid = t.import.spendingPlanId;
+    if (t.spendingSubcategory && excludedFixedByPlan[pid]?.has(t.spendingSubcategory)) continue;
     fcSubtotalByPlan[pid] = (fcSubtotalByPlan[pid] ?? 0) + -Number(t.amount);
   }
 
@@ -185,8 +195,8 @@ export async function listPlans(userId: string) {
     const fcSubtotal = fcSubtotalByPlan[plan.id] ?? 0;
     const fcTotal = fcSubtotal + (plan.includeMiscellaneous ? fcSubtotal * MISCELLANEOUS_RATE : 0);
 
-    const investmentItems = plan.lineItems.filter((i) => i.section === "investments");
-    const savingsItems = plan.lineItems.filter((i) => i.section === "savings");
+    const investmentItems = plan.lineItems.filter((i) => i.section === "investments" && !i.excluded);
+    const savingsItems = plan.lineItems.filter((i) => i.section === "savings" && !i.excluded);
     const investmentsTotal = investmentItems.reduce((s, i) => s + Number(i.amount), 0);
     const savingsTotal = savingsItems.reduce((s, i) => s + Number(i.amount), 0);
     const guiltFreeTotal = net - fcTotal - investmentsTotal - savingsTotal;
@@ -283,6 +293,7 @@ interface PlanWithLineItems {
     label: string;
     amount: any;
     isDefault: boolean;
+    excluded: boolean;
     sortOrder: number;
     createdAt: Date;
   }>;
@@ -292,13 +303,14 @@ function computeCalculations(plan: PlanWithLineItems): PlanCalculations {
   const netIncome = Number(plan.netMonthlyIncome);
   const includeMiscellaneous = plan.includeMiscellaneous;
 
+  // Excluded lines are dropped from their section totals (per-line what-if toggle).
   const fixedCostItems = plan.lineItems.filter(
-    (i) => i.section === "fixed_costs"
+    (i) => i.section === "fixed_costs" && !i.excluded
   );
   const investmentItems = plan.lineItems.filter(
-    (i) => i.section === "investments"
+    (i) => i.section === "investments" && !i.excluded
   );
-  const savingsItems = plan.lineItems.filter((i) => i.section === "savings");
+  const savingsItems = plan.lineItems.filter((i) => i.section === "savings" && !i.excluded);
 
   const fixedCostsSubtotal = fixedCostItems.reduce(
     (sum, i) => sum + Number(i.amount),
@@ -362,6 +374,7 @@ function formatPlanResponse(plan: PlanWithLineItems): SpendingPlan {
       label: item.label,
       amount: Number(item.amount),
       isDefault: item.isDefault,
+      excluded: item.excluded,
       sortOrder: item.sortOrder,
     })),
     calculations: computeCalculations(plan),

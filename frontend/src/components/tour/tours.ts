@@ -28,6 +28,11 @@ export const PLAN_TOUR: TourStep[] = [
     body: "Enter your net worth and income up top. Fixed costs fill in from your categorized transactions; investments and savings are your goals.",
   },
   {
+    selector: '[data-tour="exclude-line"]',
+    title: "Exclude a line to explore",
+    body: "Click the eye icon on any fixed-cost or savings line to exclude it. The line goes transparent and drops out of that section's total (and your guilt-free budget updates) — a quick way to see 'what if I cut this?'. Click again to include it.",
+  },
+  {
     selector: '[data-tour="plan-lock"]',
     title: "Lock when you're done",
     body: "Locking finalizes the month, adds it to your dashboard, and protects it from later category changes. You can unlock anytime.",
@@ -42,7 +47,7 @@ export const TRANSACTIONS_TOUR: TourStep[] = [
   {
     selector: '[data-tour="tx-import"]',
     title: "Import a CSV",
-    body: "Upload a bank/credit-card export — or download our template first. Imported rows are auto-categorized in the background.",
+    body: "Upload a bank/credit-card export — or download our template first. In the import dialog you can set the account type and tell us whether purchases are shown as negative or positive (or split Debit/Credit), so amounts are read correctly. Imported rows are auto-categorized instantly.",
   },
   {
     selector: '[data-tour="tx-filters"]',

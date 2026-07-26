@@ -16,6 +16,11 @@ export const authRoutes = Router();
 const BCRYPT_ROUNDS = 10;
 const ACCESS_TOKEN_EXPIRY = "1h";
 const REFRESH_TOKEN_EXPIRY_DAYS = 30;
+// Grace window during which an already-rotated (revoked) refresh token is still
+// accepted. Concurrent requests (e.g. a CSV import firing several calls at once)
+// can each try to refresh with the same token; without this, the first rotates it
+// and the rest 401 — silently killing the session mid-action.
+const REFRESH_GRACE_MS = 30_000;
 
 export const SECURITY_QUESTIONS = [
   "What was the name of your first pet?",
@@ -179,15 +184,21 @@ authRoutes.post("/refresh", async (req, res, next) => {
       include: { user: { select: { id: true, email: true, name: true, tokenVersion: true } } },
     });
 
-    if (!record || record.revokedAt || record.expiresAt < new Date()) {
+    const now = new Date();
+    const revokedRecently =
+      record?.revokedAt && now.getTime() - record.revokedAt.getTime() < REFRESH_GRACE_MS;
+    if (!record || record.expiresAt < now || (record.revokedAt && !revokedRecently)) {
       throw new AppError("Invalid or expired refresh token", 401);
     }
 
-    // Rotate: revoke old, issue new
-    await prisma.refreshToken.update({
-      where: { id: record.id },
-      data: { revokedAt: new Date() },
-    });
+    // Rotate: revoke old (unless a racing request already did within the grace
+    // window), issue new.
+    if (!record.revokedAt) {
+      await prisma.refreshToken.update({
+        where: { id: record.id },
+        data: { revokedAt: now },
+      });
+    }
 
     const { user } = record;
     const accessToken = issueAccessToken(user.id, user.email, user.name, user.tokenVersion);

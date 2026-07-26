@@ -34,11 +34,33 @@ userRoutes.get("/me", async (req, res, next) => {
         name: true,
         email: true,
         securityQuestion: true,
+        seenTours: true,
         createdAt: true,
       },
     });
     if (!user) throw new AppError("User not found", 404);
     res.json(user);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** POST /users/me/seen-tour — record that the user has seen a product tour */
+userRoutes.post("/me/seen-tour", async (req, res, next) => {
+  try {
+    const userId = req.user!.sub;
+    const { tourId } = z.object({ tourId: z.string().min(1).max(100) }).parse(req.body);
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { seenTours: true } });
+    if (!user) throw new AppError("User not found", 404);
+
+    if (!user.seenTours.includes(tourId)) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { seenTours: { push: tourId } },
+      });
+    }
+    res.json({ seenTours: user.seenTours.includes(tourId) ? user.seenTours : [...user.seenTours, tourId] });
   } catch (err) {
     next(err);
   }
