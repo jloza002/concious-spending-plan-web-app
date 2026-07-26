@@ -318,14 +318,135 @@ interface ImportModalProps {
   existingTransactions: Transaction[];
 }
 
+// How a bank represents amounts in its CSV. We normalize everything to the app's
+// internal convention (spending negative, income positive) at import time.
+type SignConvention = "negative" | "positive" | "split";
+
+const MAX_FILE_SIZE_MB = 5;
+const MAX_ROWS = 10_000;
+
+function pick(row: Record<string, string>, ...keys: string[]): string {
+  for (const k of keys) if (row[k]) return row[k];
+  return "";
+}
+
+function normalizeDate(s: string): string {
+  if (!s) return "";
+  // Already ISO YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.split("T")[0];
+  // MM/DD/YYYY or M/D/YYYY
+  const parts = s.split("/");
+  if (parts.length === 3) {
+    const m = parseInt(parts[0], 10);
+    const d = parseInt(parts[1], 10);
+    let y = parseInt(parts[2], 10);
+    if (parts[2].length === 2) y += 2000;
+    if (isNaN(m) || isNaN(d) || isNaN(y) || m < 1 || m > 12 || d < 1 || d > 31 || y < 1900 || y > 2100) return "";
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+  return "";
+}
+
+function isValidDate(s: string): boolean {
+  const n = normalizeDate(s);
+  if (!n) return false;
+  const dt = new Date(n);
+  return !isNaN(dt.getTime()) && dt.getFullYear() >= 1900 && dt.getFullYear() <= 2100;
+}
+
+function normalizeType(raw: string): "Sale" | "Return" | "Payment" | "Adjustment" | "Debit" | "Credit" {
+  const VALID = ["Sale", "Return", "Payment", "Adjustment", "Debit", "Credit"] as const;
+  if ((VALID as readonly string[]).includes(raw)) return raw as typeof VALID[number];
+  const u = raw.toUpperCase();
+  if (u.includes("PMT") || u.includes("PAYMENT")) return "Payment";
+  if (u.includes("XFER") || u.includes("TRANSFER") || u.includes("PARTNERFI") || u.includes("ACCT_")) return "Adjustment";
+  if (u.includes("DEBIT") || u.includes("QUICKPAY_DEBIT") || u.includes("MISC_DEBIT")) return "Debit";
+  if (u.includes("CREDIT") || u.includes("QUICKPAY_CREDIT")) return "Credit";
+  if (u.includes("RETURN") || u.includes("REFUND")) return "Return";
+  return "Sale";
+}
+
+function normalizeAccountType(raw: string): "credit_card" | "checking" | "savings" | undefined {
+  if (!raw) return undefined;
+  const v = raw.trim().toLowerCase().replace(/\s+/g, " ");
+  if (v.includes("credit") || v.includes("card") || v.includes("cc")) return "credit_card";
+  if (v.includes("checking")) return "checking";
+  if (v.includes("saving")) return "savings";
+  return undefined;
+}
+
+/**
+ * Turn raw CSV records into transactions, applying the chosen sign convention so
+ * that stored amounts always follow "spending negative, income positive".
+ *   - negative: file already marks purchases negative (Chase) → keep as-is
+ *   - positive: file marks purchases positive → flip all signs
+ *   - split:    separate Debit (out) / Credit (in) columns → credit − debit
+ */
+function deriveRows(records: Record<string, string>[], convention: SignConvention): CsvTransaction[] {
+  return records
+    .map((row) => {
+      const rawDate = pick(row, "Transaction Date", "Date", "Posting Date", "Trans Date", "TransDate");
+      const rawPostDate = pick(row, "Post Date", "Posting Date", "Date", "Transaction Date");
+      const transactionDate = normalizeDate(rawDate);
+      const postDate = isValidDate(rawPostDate) ? normalizeDate(rawPostDate) : transactionDate;
+      const description = pick(row, "Description", "Details", "Merchant", "Payee", "Name");
+      if (!isValidDate(transactionDate) || !description) return null;
+
+      let amount: number;
+      if (convention === "split") {
+        const credit = parseFloat(pick(row, "Credit")) || 0;
+        const debit = parseFloat(pick(row, "Debit")) || 0;
+        amount = credit - debit;
+      } else {
+        const raw = parseFloat(pick(row, "Amount", "Debit", "Credit")) || 0;
+        amount = convention === "positive" ? -raw : raw;
+      }
+
+      return {
+        transactionDate,
+        postDate,
+        description,
+        category: pick(row, "Category") || undefined,
+        type: normalizeType(pick(row, "Type", "Transaction Type", "Details")),
+        amount,
+        memo: pick(row, "Memo", "Note", "Notes") || undefined,
+        accountType: normalizeAccountType(pick(row, "Account Type", "AccountType", "Account")),
+      } as CsvTransaction;
+    })
+    .filter((t): t is CsvTransaction => t !== null);
+}
+
+/** Remembered sign convention per account type, stored in localStorage. */
+function loadSignPref(account: string): SignConvention | null {
+  if (typeof window === "undefined") return null;
+  const v = window.localStorage.getItem(`csp:importSign:${account || "_default"}`);
+  return v === "negative" || v === "positive" || v === "split" ? v : null;
+}
+function saveSignPref(account: string, convention: SignConvention) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(`csp:importSign:${account || "_default"}`, convention);
+}
+
 function ImportModal({ onClose, onImport, isImporting, existingTransactions }: ImportModalProps) {
-  const [parsedRows, setParsedRows] = useState<CsvTransaction[]>([]);
+  const [rawRecords, setRawRecords] = useState<Record<string, string>[]>([]);
   const [parseError, setParseError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   // For each parsed row at index i, has the user opted to import it even if flagged as a duplicate?
   const [keepDuplicate, setKeepDuplicate] = useState<Record<number, boolean>>({});
   // Account type to apply to the whole import. "" keeps each row's value from the CSV.
   const [importAccount, setImportAccount] = useState<"" | "credit_card" | "checking" | "savings">("");
+  // How the uploaded file represents amounts (spending negative/positive, or split columns).
+  const [signConvention, setSignConvention] = useState<SignConvention>("negative");
+
+  // Derive normalized transactions from the raw CSV rows + the chosen convention.
+  // Re-runs instantly when the user changes the convention — no re-reading the file.
+  const parsedRows = useMemo(() => deriveRows(rawRecords, signConvention), [rawRecords, signConvention]);
+
+  // Remember the sign convention per account type: when the account changes,
+  // preselect the value last used for that account (or the "negative" default).
+  useEffect(() => {
+    setSignConvention(loadSignPref(importAccount) ?? "negative");
+  }, [importAccount]);
 
   // Flag each parsed row as duplicate based on existing transactions in the plan
   const rowIsDuplicate = useMemo(() => {
@@ -345,59 +466,6 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
   const skipCount = duplicateCount - keepCount;
   const rowsToImport = parsedRows.filter((_, i) => !rowIsDuplicate[i] || keepDuplicate[i]);
 
-  function normalizeAccountType(raw: string): "credit_card" | "checking" | "savings" | undefined {
-    if (!raw) return undefined;
-    const v = raw.trim().toLowerCase().replace(/\s+/g, " ");
-    if (v.includes("credit") || v.includes("card") || v.includes("cc")) return "credit_card";
-    if (v.includes("checking")) return "checking";
-    if (v.includes("saving")) return "savings";
-    return undefined;
-  }
-
-  function normalizeType(raw: string): "Sale" | "Return" | "Payment" | "Adjustment" | "Debit" | "Credit" {
-    const VALID = ["Sale", "Return", "Payment", "Adjustment", "Debit", "Credit"] as const;
-    if ((VALID as readonly string[]).includes(raw)) return raw as typeof VALID[number];
-    const u = raw.toUpperCase();
-    if (u.includes("PMT") || u.includes("PAYMENT")) return "Payment";
-    if (u.includes("XFER") || u.includes("TRANSFER") || u.includes("PARTNERFI") || u.includes("ACCT_")) return "Adjustment";
-    if (u.includes("DEBIT") || u.includes("QUICKPAY_DEBIT") || u.includes("MISC_DEBIT")) return "Debit";
-    if (u.includes("CREDIT") || u.includes("QUICKPAY_CREDIT")) return "Credit";
-    if (u.includes("RETURN") || u.includes("REFUND")) return "Return";
-    return "Sale";
-  }
-
-  function pick(row: Record<string, string>, ...keys: string[]): string {
-    for (const k of keys) if (row[k]) return row[k];
-    return "";
-  }
-
-  const MAX_FILE_SIZE_MB = 5;
-  const MAX_ROWS = 10_000;
-
-  function normalizeDate(s: string): string {
-    if (!s) return "";
-    // Already ISO YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.split("T")[0];
-    // MM/DD/YYYY or M/D/YYYY
-    const parts = s.split("/");
-    if (parts.length === 3) {
-      const m = parseInt(parts[0], 10);
-      const d = parseInt(parts[1], 10);
-      let y = parseInt(parts[2], 10);
-      if (parts[2].length === 2) y += 2000;
-      if (isNaN(m) || isNaN(d) || isNaN(y) || m < 1 || m > 12 || d < 1 || d > 31 || y < 1900 || y > 2100) return "";
-      return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    }
-    return "";
-  }
-
-  function isValidDate(s: string): boolean {
-    const n = normalizeDate(s);
-    if (!n) return false;
-    const dt = new Date(n);
-    return !isNaN(dt.getTime()) && dt.getFullYear() >= 1900 && dt.getFullYear() <= 2100;
-  }
-
   function parseFile(file: File) {
     setParseError("");
     if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
@@ -410,30 +478,13 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
       complete: (results) => {
         try {
           const rows = (results.data as Record<string, string>[]).slice(0, MAX_ROWS);
-          const transactions: CsvTransaction[] = rows
-            .map((row) => {
-              const rawDate = pick(row, "Transaction Date", "Date", "Posting Date", "Trans Date", "TransDate");
-              const rawPostDate = pick(row, "Post Date", "Posting Date", "Date", "Transaction Date");
-              const transactionDate = normalizeDate(rawDate);
-              const postDate = isValidDate(rawPostDate) ? normalizeDate(rawPostDate) : transactionDate;
-              const description = pick(row, "Description", "Details", "Merchant", "Payee", "Name");
-              if (!isValidDate(transactionDate) || !description) return null;
-              return {
-                transactionDate,
-                postDate,
-                description,
-                category: pick(row, "Category") || undefined,
-                type: normalizeType(pick(row, "Type", "Transaction Type", "Details")),
-                amount: parseFloat(pick(row, "Amount", "Debit", "Credit") ?? "0") || 0,
-                memo: pick(row, "Memo", "Note", "Notes") || undefined,
-                accountType: normalizeAccountType(pick(row, "Account Type", "AccountType", "Account")),
-              } as CsvTransaction;
-            })
-            .filter((t): t is CsvTransaction => t !== null);
-          if (transactions.length === 0) {
+          // Sign normalization is applied later by deriveRows, so a convention
+          // change re-derives without re-reading the file.
+          if (deriveRows(rows, "negative").length === 0) {
             setParseError("No valid transactions found. Check that your CSV has Date and Description columns.");
+            setRawRecords([]);
           } else {
-            setParsedRows(transactions);
+            setRawRecords(rows);
           }
         } catch {
           setParseError("Failed to parse CSV. Please check the file format.");
@@ -480,6 +531,7 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
       : rowsToImport;
     try {
       await onImport(rows, skipCount);
+      saveSignPref(importAccount, signConvention);
       onClose();
     } catch {
       // parent has already shown the error in the summary banner
@@ -586,7 +638,7 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
                   )}
                 </p>
                 <button
-                  onClick={() => { setParsedRows([]); setKeepDuplicate({}); }}
+                  onClick={() => { setRawRecords([]); setKeepDuplicate({}); }}
                   className="text-xs text-gray-400 hover:text-gray-600 font-sans"
                 >
                   Change file
@@ -608,6 +660,22 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
                 {importAccount && (
                   <span className="text-[11px] text-gray-400 font-sans">applied to all {rowsToImport.length} rows</span>
                 )}
+              </div>
+
+              <div className="mb-3 flex items-center gap-2 flex-wrap">
+                <label className="text-xs font-medium text-gray-600 font-sans">Amounts in this file:</label>
+                <select
+                  value={signConvention}
+                  onChange={(e) => setSignConvention(e.target.value as SignConvention)}
+                  className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-sans bg-white focus:outline-none focus:border-[var(--color-orange)]"
+                >
+                  <option value="negative">Purchases are negative (e.g. Chase)</option>
+                  <option value="positive">Purchases are positive</option>
+                  <option value="split">Separate Debit / Credit columns</option>
+                </select>
+                <span className="text-[11px] text-gray-400 font-sans">
+                  green <span className="text-green-600 font-medium">+</span> rows are treated as income
+                </span>
               </div>
 
               {duplicateCount > 0 && (
@@ -683,7 +751,7 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
                             )}
                           </td>
                           <td className={`px-3 py-1.5 text-xs text-right tabular-nums font-medium ${row.amount > 0 ? "text-green-600" : "text-gray-700"}`}>
-                            ${Math.abs(row.amount).toFixed(2)}
+                            {row.amount > 0 ? "+" : ""}${Math.abs(row.amount).toFixed(2)}
                           </td>
                         </tr>
                       );
