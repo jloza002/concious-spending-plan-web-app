@@ -136,3 +136,28 @@ export function useDeleteLineItem(planId: string) {
     },
   });
 }
+
+/** Toggle a line item's excluded flag — optimistic so totals update instantly */
+export function useToggleExcludeLineItem(planId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, excluded }: { itemId: string; excluded: boolean }) =>
+      api.put<SpendingPlan>(`/plans/${planId}/items/${itemId}`, { excluded }),
+    onMutate: async ({ itemId, excluded }) => {
+      await queryClient.cancelQueries({ queryKey: ["plan", planId] });
+      const previous = queryClient.getQueryData<SpendingPlan>(["plan", planId]);
+      queryClient.setQueryData<SpendingPlan>(["plan", planId], (old) =>
+        old
+          ? { ...old, lineItems: old.lineItems.map((i) => (i.id === itemId ? { ...i, excluded } : i)) }
+          : old
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(["plan", planId], context.previous);
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["plan", planId], data);
+    },
+  });
+}

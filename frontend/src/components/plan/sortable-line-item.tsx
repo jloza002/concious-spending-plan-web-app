@@ -10,7 +10,9 @@ interface SortableLineItemProps {
   onAmountChange: (id: string, amount: number) => void;
   onLabelChange: (id: string, label: string) => void;
   onDelete: (id: string) => void;
+  onToggleExclude?: (id: string, excluded: boolean) => void;
   readOnly?: boolean;
+  excludeTourAnchor?: boolean;
 }
 
 export function SortableLineItem({
@@ -18,7 +20,9 @@ export function SortableLineItem({
   onAmountChange,
   onLabelChange,
   onDelete,
+  onToggleExclude,
   readOnly = false,
+  excludeTourAnchor,
 }: SortableLineItemProps) {
   const {
     attributes,
@@ -44,7 +48,9 @@ export function SortableLineItem({
       onAmountChange={onAmountChange}
       onLabelChange={onLabelChange}
       onDelete={onDelete}
+      onToggleExclude={onToggleExclude}
       readOnly={readOnly}
+      excludeTourAnchor={excludeTourAnchor}
       dragHandleProps={{ ...attributes, ...listeners }}
     />
   );

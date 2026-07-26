@@ -2,7 +2,7 @@
 
 import { use, useMemo } from "react";
 import { usePlan, useUpdatePlan } from "@/hooks/use-spending-plan";
-import { useUpdateLineItem, useAddLineItem, useDeleteLineItem, useReorderLineItems } from "@/hooks/use-line-items";
+import { useUpdateLineItem, useAddLineItem, useDeleteLineItem, useReorderLineItems, useToggleExcludeLineItem } from "@/hooks/use-line-items";
 import { useTransactions } from "@/hooks/use-transactions";
 import { useTogglePlanLock } from "@/hooks/use-user-categories";
 import { NetWorthSection } from "@/components/plan/net-worth-section";
@@ -47,6 +47,7 @@ export default function PlanPage({
   const addItem = useAddLineItem(planId);
   const deleteItem = useDeleteLineItem(planId);
   const reorderItems = useReorderLineItems(planId);
+  const toggleExclude = useToggleExcludeLineItem(planId);
   const { data: transactions } = useTransactions(planId);
   const toggleLock = useTogglePlanLock(planId);
 
@@ -73,23 +74,40 @@ export default function PlanPage({
     return totals;
   }, [transactions, plan]);
 
-  // Override plan calculations with transaction-based fixed costs
+  // Override plan calculations with transaction-based fixed costs, dropping any
+  // line the user has excluded (per-line "what-if") from its section total.
   const calculations = useMemo(() => {
     if (!plan) return null;
     const net = plan.netMonthlyIncome;
-    const fixedCostsSubtotal = Object.values(fixedCategoryTotals).reduce((s, v) => s + v, 0);
+    const excludedFixedLabels = new Set(
+      plan.lineItems.filter((i) => i.section === "fixed_costs" && i.excluded).map((i) => i.label)
+    );
+    const fixedCostsSubtotal = Object.entries(fixedCategoryTotals).reduce(
+      (s, [label, v]) => (excludedFixedLabels.has(label) ? s : s + v),
+      0
+    );
     const miscellaneous = plan.includeMiscellaneous ? fixedCostsSubtotal * MISCELLANEOUS_RATE : 0;
     const fixedCostsTotal = fixedCostsSubtotal + miscellaneous;
-    const { investmentsTotal, savingsTotal } = plan.calculations;
+    const investmentsTotal = plan.lineItems
+      .filter((i) => i.section === "investments" && !i.excluded)
+      .reduce((s, i) => s + i.amount, 0);
+    const savingsTotal = plan.lineItems
+      .filter((i) => i.section === "savings" && !i.excluded)
+      .reduce((s, i) => s + i.amount, 0);
     const guiltFreeTotal = net - fixedCostsTotal - investmentsTotal - savingsTotal;
+    const pct = (v: number) => (net > 0 ? v / net : 0);
     return {
       ...plan.calculations,
       fixedCostsSubtotal,
       miscellaneous,
       fixedCostsTotal,
-      fixedCostsPercentage: net > 0 ? fixedCostsTotal / net : 0,
+      fixedCostsPercentage: pct(fixedCostsTotal),
+      investmentsTotal,
+      investmentsPercentage: pct(investmentsTotal),
+      savingsTotal,
+      savingsPercentage: pct(savingsTotal),
       guiltFreeTotal,
-      guiltFreePercentage: net > 0 ? guiltFreeTotal / net : 0,
+      guiltFreePercentage: pct(guiltFreeTotal),
     };
   }, [plan, fixedCategoryTotals]);
 
@@ -135,6 +153,10 @@ export default function PlanPage({
 
   function handleReorder(items: { id: string; sortOrder: number }[]) {
     reorderItems.mutate(items);
+  }
+
+  function handleToggleExclude(id: string, excluded: boolean) {
+    toggleExclude.mutate({ itemId: id, excluded });
   }
 
   return (
@@ -207,6 +229,7 @@ export default function PlanPage({
           calculations={calculations}
           includeMiscellaneous={plan.includeMiscellaneous}
           onDeleteMiscellaneous={() => debouncedUpdate({ includeMiscellaneous: false })}
+          onToggleExclude={handleToggleExclude}
           onReorder={handleReorder}
         />
 
@@ -227,6 +250,7 @@ export default function PlanPage({
           onLabelChange={handleLabelChange}
           onAddItem={() => handleAddItem("savings")}
           onDeleteItem={handleDeleteItem}
+          onToggleExclude={handleToggleExclude}
           onReorder={handleReorder}
         />
 

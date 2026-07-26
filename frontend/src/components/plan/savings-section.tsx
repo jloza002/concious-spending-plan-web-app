@@ -28,6 +28,7 @@ interface SavingsSectionProps {
   onLabelChange: (id: string, label: string) => void;
   onAddItem: () => void;
   onDeleteItem: (id: string) => void;
+  onToggleExclude: (id: string, excluded: boolean) => void;
   onReorder: (items: { id: string; sortOrder: number }[]) => void;
 }
 
@@ -38,6 +39,7 @@ export function SavingsSection({
   onLabelChange,
   onAddItem,
   onDeleteItem,
+  onToggleExclude,
   onReorder,
 }: SavingsSectionProps) {
   const range = SECTION_RANGES[PLAN_SECTIONS.SAVINGS];
@@ -73,13 +75,15 @@ export function SavingsSection({
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-          {items.map((item) => (
+          {items.map((item, i) => (
             <SortableLineItem
               key={item.id}
               item={item}
               onAmountChange={onAmountChange}
               onLabelChange={onLabelChange}
               onDelete={onDeleteItem}
+              onToggleExclude={onToggleExclude}
+              excludeTourAnchor={i === 0}
             />
           ))}
         </SortableContext>

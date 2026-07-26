@@ -10,6 +10,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const justRegistered = searchParams.get("registered") === "1";
+  const sessionExpired = searchParams.get("expired") === "1";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -49,6 +50,11 @@ function LoginForm() {
         {justRegistered && (
           <div className="p-3 bg-green-50 text-green-700 text-sm rounded-lg font-sans">
             Account created! Sign in to get started.
+          </div>
+        )}
+        {sessionExpired && !justRegistered && (
+          <div className="p-3 bg-amber-50 text-amber-800 text-sm rounded-lg font-sans">
+            Your session expired due to inactivity. Please sign in again.
           </div>
         )}
         {error && (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useSeenTours, useMarkTourSeen } from "@/hooks/use-seen-tours";
 
 export interface TourStep {
   /** CSS selector for the element to highlight. Omit for a centered, anchorless step. */
@@ -34,25 +35,21 @@ const PAD = 8;
  * replay it.
  */
 export function GuidedTour({ tourId, steps, version = 1 }: GuidedTourProps) {
-  const storageKey = `tour:${tourId}:v${version}`;
+  // Seen-state is account-scoped (server-side) so tours don't re-run on every
+  // new browser/device. Versioning the id lets us re-show after big changes.
+  const seenId = `${tourId}:v${version}`;
+  const { data: seenTours, isLoading } = useSeenTours();
+  const markSeen = useMarkTourSeen();
+  const hasSeen = !!seenTours?.includes(seenId);
+
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const autoStartedRef = useRef(false);
 
-  // Auto-start on first visit; allow manual replay via custom event.
+  // Manual replay via custom event (e.g. a Help button) — always available.
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    let seen = false;
-    try {
-      seen = window.localStorage.getItem(storageKey) === "1";
-    } catch {
-      seen = false;
-    }
-    if (!seen) {
-      const t = setTimeout(() => setActive(true), 600);
-      return () => clearTimeout(t);
-    }
     const onStart = (e: Event) => {
       if ((e as CustomEvent).detail === tourId) {
         setStepIndex(0);
@@ -61,16 +58,20 @@ export function GuidedTour({ tourId, steps, version = 1 }: GuidedTourProps) {
     };
     window.addEventListener("csp:start-tour", onStart);
     return () => window.removeEventListener("csp:start-tour", onStart);
-  }, [storageKey, tourId]);
+  }, [tourId]);
+
+  // Auto-start once, only when we know (from the account) it hasn't been seen.
+  useEffect(() => {
+    if (isLoading || hasSeen || autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    const t = setTimeout(() => setActive(true), 600);
+    return () => clearTimeout(t);
+  }, [isLoading, hasSeen]);
 
   const finish = useCallback(() => {
     setActive(false);
-    try {
-      window.localStorage.setItem(storageKey, "1");
-    } catch {
-      /* ignore */
-    }
-  }, [storageKey]);
+    if (!hasSeen) markSeen.mutate(seenId);
+  }, [hasSeen, markSeen, seenId]);
 
   const measure = useCallback(() => {
     const step = steps[stepIndex];

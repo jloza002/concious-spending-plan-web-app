@@ -42,17 +42,23 @@ export async function generateExcel(planId: string, userId: string): Promise<Exc
     select: { spendingSubcategory: true, amount: true },
   });
 
+  type LineItem = (typeof plan.lineItems)[number];
+
+  // Excluded lines (per-line what-if toggle) are dropped from all totals.
+  const excludedFixedLabels = new Set(
+    plan.lineItems.filter((i: LineItem) => i.section === "fixed_costs" && i.excluded).map((i: LineItem) => i.label)
+  );
+
   const fcTotals: Record<string, number> = {};
   for (const t of txns) {
-    if (!t.spendingSubcategory) continue;
+    if (!t.spendingSubcategory || excludedFixedLabels.has(t.spendingSubcategory)) continue;
     fcTotals[t.spendingSubcategory] =
       (fcTotals[t.spendingSubcategory] ?? 0) + -Number(t.amount);
   }
   const fcEntries = Object.entries(fcTotals).sort(([a], [b]) => a.localeCompare(b));
 
-  type LineItem = (typeof plan.lineItems)[number];
-  const investmentItems = plan.lineItems.filter((i: LineItem) => i.section === "investments");
-  const savingsItems = plan.lineItems.filter((i: LineItem) => i.section === "savings");
+  const investmentItems = plan.lineItems.filter((i: LineItem) => i.section === "investments" && !i.excluded);
+  const savingsItems = plan.lineItems.filter((i: LineItem) => i.section === "savings" && !i.excluded);
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "IWT Conscious Spending Plan";

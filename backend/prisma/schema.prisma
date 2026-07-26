@@ -37,6 +37,10 @@ model User {
   // Security
   tokenVersion  Int       @default(0) @map("token_version")
 
+  // Product tours the user has already seen (account-scoped, so they don't
+  // re-run on every new browser/device). Values are tour ids.
+  seenTours     String[]  @default([]) @map("seen_tours")
+
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
@@ -179,6 +183,9 @@ model PlanLineItem {
   label          String @db.VarChar(255)
   amount         Decimal @default(0) @db.Decimal(12, 2)
   isDefault      Boolean @default(false) @map("is_default")
+  // Excluded lines are shown transparent and dropped from their section total
+  // (a what-if toggle) without deleting the line.
+  excluded       Boolean @default(false)
   sortOrder      Int     @map("sort_order")
   createdAt      DateTime @default(now()) @map("created_at")
 
