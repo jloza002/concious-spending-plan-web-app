@@ -11,6 +11,7 @@
     "build": "pnpm -r run build",
     "lint": "pnpm -r run lint",
     "type-check": "pnpm -r run type-check",
+    "test": "pnpm -r run test",
     "db:migrate": "pnpm --filter backend run db:migrate",
     "db:generate": "pnpm --filter backend run db:generate",
     "db:seed": "pnpm --filter backend run db:seed"
@@ -29,5 +30,8 @@
       "sharp",
       "unrs-resolver"
     ]
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
   }
 }

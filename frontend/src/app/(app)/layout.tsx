@@ -2,6 +2,7 @@
 
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { SessionGuard } from "@/components/auth/session-guard";
+import { WhatsNewModal } from "@/components/whats-new/whats-new-modal";
 import { signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -39,6 +40,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
       <SessionGuard />
+      {/* Announces newly shipped features once per account, after sign-in. */}
+      <WhatsNewModal />
       <div className="h-screen bg-[var(--color-cream)] flex flex-col">
         {/* Top Navigation */}
         <nav className="bg-[var(--color-dark-teal)] text-white no-print shrink-0">

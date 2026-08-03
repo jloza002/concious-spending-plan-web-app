@@ -191,33 +191,85 @@ export async function listPlans(userId: string) {
   }
 
   return plans.map((plan) => {
-    const net = Number(plan.netMonthlyIncome);
-    const safePercent = (v: number) => (net > 0 ? v / net : 0);
+    const investmentsTotal = plan.lineItems
+      .filter((i) => i.section === "investments" && !i.excluded)
+      .reduce((s, i) => s + Number(i.amount), 0);
+    const savingsTotal = plan.lineItems
+      .filter((i) => i.section === "savings" && !i.excluded)
+      .reduce((s, i) => s + Number(i.amount), 0);
 
-    const fcSubtotal = fcSubtotalByPlan[plan.id] ?? 0;
-    const fcTotal = fcSubtotal + (plan.includeMiscellaneous ? fcSubtotal * MISCELLANEOUS_RATE : 0);
-
-    const investmentItems = plan.lineItems.filter((i) => i.section === "investments" && !i.excluded);
-    const savingsItems = plan.lineItems.filter((i) => i.section === "savings" && !i.excluded);
-    const investmentsTotal = investmentItems.reduce((s, i) => s + Number(i.amount), 0);
-    const savingsTotal = savingsItems.reduce((s, i) => s + Number(i.amount), 0);
-    const guiltFreeTotal = net - fcTotal - investmentsTotal - savingsTotal;
+    const totals = computePlanTotals({
+      netMonthlyIncome: Number(plan.netMonthlyIncome),
+      assets: Number(plan.assets),
+      investmentsNw: Number(plan.investmentsNw),
+      savingsNw: Number(plan.savingsNw),
+      debt: Number(plan.debt),
+      includeMiscellaneous: plan.includeMiscellaneous,
+      fixedCostsSubtotal: fcSubtotalByPlan[plan.id] ?? 0,
+      investmentsTotal,
+      savingsTotal,
+    });
 
     return {
       id: plan.id,
       month: plan.month,
       year: plan.year,
-      netMonthlyIncome: net,
-      totalNetWorth: Number(plan.assets) + Number(plan.investmentsNw) + Number(plan.savingsNw) - Number(plan.debt),
-      fixedCostsPercentage: safePercent(fcTotal),
-      investmentsPercentage: safePercent(investmentsTotal),
-      savingsPercentage: safePercent(savingsTotal),
-      guiltFreePercentage: safePercent(guiltFreeTotal),
-      guiltFreeTotal,
       isLocked: plan.isLocked,
       updatedAt: plan.updatedAt.toISOString(),
+      ...totals,
     };
   });
+}
+
+export interface PlanTotalsInput {
+  netMonthlyIncome: number;
+  assets: number;
+  investmentsNw: number;
+  savingsNw: number;
+  debt: number;
+  includeMiscellaneous: boolean;
+  /** Fixed-cost spend before the miscellaneous uplift. */
+  fixedCostsSubtotal: number;
+  investmentsTotal: number;
+  savingsTotal: number;
+}
+
+/**
+ * The Conscious Spending Plan arithmetic, kept pure so it can be tested
+ * without a database.
+ *
+ * Miscellaneous is never stored — when enabled it is a 15% uplift on the
+ * fixed-cost subtotal, computed here every time. Guilt-free spending is
+ * whatever net income is left after fixed costs, investments and savings, and
+ * is allowed to go negative: that is a real state the plan needs to show
+ * rather than clamp away.
+ */
+export function computePlanTotals(input: PlanTotalsInput) {
+  const net = input.netMonthlyIncome;
+  // Percentages are of net income; guard the divide so an unfilled plan
+  // reports 0% instead of NaN or Infinity.
+  const safePercent = (v: number) => (net > 0 ? v / net : 0);
+
+  const fixedCostsTotal =
+    input.fixedCostsSubtotal +
+    (input.includeMiscellaneous
+      ? input.fixedCostsSubtotal * MISCELLANEOUS_RATE
+      : 0);
+
+  const guiltFreeTotal =
+    net - fixedCostsTotal - input.investmentsTotal - input.savingsTotal;
+
+  return {
+    netMonthlyIncome: net,
+    totalNetWorth:
+      input.assets + input.investmentsNw + input.savingsNw - input.debt,
+    fixedCostsTotal,
+    fixedCostsPercentage: safePercent(fixedCostsTotal),
+    investmentsPercentage: safePercent(input.investmentsTotal),
+    savingsPercentage: safePercent(input.savingsTotal),
+    guiltFreePercentage: safePercent(guiltFreeTotal),
+    guiltFreeTotal,
+  };
 }
 
 /** Update top-level plan fields (net worth, income) */

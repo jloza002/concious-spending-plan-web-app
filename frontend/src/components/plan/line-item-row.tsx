@@ -1,6 +1,7 @@
 "use client";
 
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { classifyOverUnder } from "@/lib/budget-display";
 import { useState, useCallback, forwardRef } from "react";
 import type { PlanLineItem } from "@csp/shared";
 
@@ -31,11 +32,7 @@ const money = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n);
 
-/**
- * Actual minus planned. Over budget is the bad direction, so it gets the
- * warning colour; an unbudgeted category is called out as such rather than
- * shown as a green underspend, which would read as savings it didn't earn.
- */
+/** Over budget is the bad direction, so it gets the warning colour. */
 function OverUnderChip({
   planned,
   actual,
@@ -45,25 +42,26 @@ function OverUnderChip({
 }) {
   const base =
     "inline-block text-[11px] font-sans font-bold px-1.5 py-0.5 rounded-full tabular-nums whitespace-nowrap";
+  const result = classifyOverUnder(planned, actual);
 
-  if (planned === undefined) {
-    return <span className={`${base} bg-gray-100 text-gray-500`}>not budgeted</span>;
+  switch (result.kind) {
+    case "not-budgeted":
+      return <span className={`${base} bg-gray-100 text-gray-500`}>not budgeted</span>;
+    case "even":
+      return <span className={`${base} bg-gray-100 text-gray-500`}>even</span>;
+    case "over":
+      return (
+        <span className={`${base} bg-red-50 text-red-700`}>
+          +{money(result.amount)}
+        </span>
+      );
+    case "under":
+      return (
+        <span className={`${base} bg-green-50 text-green-700`}>
+          &minus;{money(result.amount)}
+        </span>
+      );
   }
-
-  const diff = actual - planned;
-  if (Math.abs(diff) < 0.5) {
-    return <span className={`${base} bg-gray-100 text-gray-500`}>even</span>;
-  }
-  if (diff > 0) {
-    return (
-      <span className={`${base} bg-red-50 text-red-700`}>+{money(diff)}</span>
-    );
-  }
-  return (
-    <span className={`${base} bg-green-50 text-green-700`}>
-      &minus;{money(Math.abs(diff))}
-    </span>
-  );
 }
 
 function EyeIcon({ off }: { off?: boolean }) {
