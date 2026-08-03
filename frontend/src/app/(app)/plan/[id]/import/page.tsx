@@ -18,6 +18,7 @@ import {
   useUpdateTransactionType,
   useUpdateTransactionAccountType,
   useDeleteAllTransactions,
+  useBulkDeleteTransactions,
 } from "@/hooks/use-transactions";
 import { Button } from "@/components/ui/button";
 import { GuidedTour } from "@/components/tour/guided-tour";
@@ -1127,6 +1128,35 @@ function TypeSelect({ transaction, customTypes, onSelect, onAddType, onDeleteTyp
   );
 }
 
+// ─── Select-all checkbox (supports the indeterminate visual state) ────────────
+
+function SelectAllCheckbox({
+  checked,
+  indeterminate,
+  onChange,
+  title,
+}: {
+  checked: boolean;
+  indeterminate: boolean;
+  onChange: () => void;
+  title: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      title={title}
+      className="cursor-pointer"
+    />
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function TransactionsPage({
@@ -1151,12 +1181,15 @@ export default function TransactionsPage({
   const deleteLineItem = useDeleteLineItem(planId);
   const renameCategory = useRenameCategory(planId);
   const deleteAllTransactions = useDeleteAllTransactions(planId);
+  const bulkDeleteTransactions = useBulkDeleteTransactions(planId);
   const manageType = useManageTransactionType(planId);
   const [showImport, setShowImport] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastImportSummary, setLastImportSummary] = useState<
     | { imported: number; categorized: number; skippedDuplicates: number; error?: string }
     | null
@@ -1225,6 +1258,50 @@ export default function TransactionsPage({
     }
     return result;
   }, [transactions, filterCategory, filterKeyword, filterDateFrom, filterDateTo, filterStatus, filterAccount]);
+
+  // Drop any selection that no longer exists (e.g. deleted through another
+  // action) so the count and bulk-delete request never reference stale ids.
+  useEffect(() => {
+    if (!transactions) return;
+    const liveIds = new Set(transactions.map((t) => t.id));
+    setSelectedIds((prev) => {
+      const next = new Set([...prev].filter((id) => liveIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [transactions]);
+
+  const visibleSelectedCount = filteredTransactions.filter((t) => selectedIds.has(t.id)).length;
+  const allVisibleSelected = filteredTransactions.length > 0 && visibleSelectedCount === filteredTransactions.length;
+  const someVisibleSelected = visibleSelectedCount > 0 && !allVisibleSelected;
+
+  function toggleSelectOne(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Selects/deselects only the currently filtered rows, not the whole plan —
+  // consistent with how the import preview's "Import all" toggles a filtered set.
+  function toggleSelectAllVisible() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        filteredTransactions.forEach((t) => next.delete(t.id));
+      } else {
+        filteredTransactions.forEach((t) => next.add(t.id));
+      }
+      return next;
+    });
+  }
+
+  async function handleBulkDelete() {
+    await bulkDeleteTransactions.mutateAsync(Array.from(selectedIds));
+    setSelectedIds(new Set());
+    setShowBulkDeleteConfirm(false);
+  }
 
   const categoryOptions: CategoryOption[] = plan
     ? plan.lineItems
@@ -1528,10 +1605,41 @@ export default function TransactionsPage({
       ) : (
         /* Transactions Table */
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 max-w-5xl mx-auto">
+          {/* Bulk selection bar — only shown once something is selected */}
+          {selectedIds.size > 0 && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-[var(--color-orange)]/10 border-b border-[var(--color-orange)]/20">
+              <span className="text-xs font-sans font-medium text-[#15302F]">
+                {selectedIds.size} selected
+              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="text-xs text-gray-500 hover:text-gray-700 font-sans"
+                >
+                  Clear
+                </button>
+                <Button
+                  size="sm"
+                  onClick={() => setShowBulkDeleteConfirm(true)}
+                  className="bg-red-500 hover:bg-red-600 text-white"
+                >
+                  Delete Selected
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm font-sans">
               <thead>
                 <tr className="bg-[#15302F]">
+                  <th className="px-2 py-2.5 w-8">
+                    <SelectAllCheckbox
+                      checked={allVisibleSelected}
+                      indeterminate={someVisibleSelected}
+                      onChange={toggleSelectAllVisible}
+                      title={allVisibleSelected ? "Deselect all" : "Select all"}
+                    />
+                  </th>
                   <th className="text-left px-2 py-2.5 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide w-24">Date</th>
                   <th className="text-left px-2 py-2.5 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide">Description</th>
                   <th className="text-left px-2 py-2.5 text-[var(--color-warm-beige)] text-xs font-semibold tracking-wide w-28">Type</th>
@@ -1546,9 +1654,19 @@ export default function TransactionsPage({
                   <tr
                     key={t.id}
                     className={`border-t border-gray-100 transition-colors hover:bg-[#F5EEE4]/60 group ${
-                      t.isDuplicate ? "opacity-60" : i % 2 === 0 ? "bg-white" : "bg-[#F5EEE4]/30"
+                      selectedIds.has(t.id)
+                        ? "bg-[var(--color-orange)]/5"
+                        : t.isDuplicate ? "opacity-60" : i % 2 === 0 ? "bg-white" : "bg-[#F5EEE4]/30"
                     }`}
                   >
+                    <td className="px-2 py-2 w-8">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(t.id)}
+                        onChange={() => toggleSelectOne(t.id)}
+                        className="cursor-pointer"
+                      />
+                    </td>
                     <td className="px-2 py-2 text-xs text-gray-500 whitespace-nowrap w-24">{t.transactionDate}</td>
                     <td className="px-2 py-2 max-w-[200px]">
                       <div className="flex items-center gap-1 truncate">
@@ -1679,6 +1797,38 @@ export default function TransactionsPage({
           onAdd={async (data) => { await addTransaction.mutateAsync({ ...data, type: data.type as "Sale" | "Return" | "Payment" | "Adjustment" | "Debit" | "Credit" }); }}
           isAdding={addTransaction.isPending}
         />
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setShowBulkDeleteConfirm(false); }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+            <div className="bg-red-600 px-6 py-4">
+              <h2 className="font-display text-lg font-bold text-white">Delete Selected</h2>
+            </div>
+            <div className="p-6 space-y-3">
+              <p className="text-sm text-gray-700 font-sans">
+                This will delete <span className="font-semibold text-red-600">{selectedIds.size} transaction{selectedIds.size === 1 ? "" : "s"}</span>.
+              </p>
+              <p className="text-xs text-gray-500 font-sans">
+                They&apos;ll move to Deleted Transactions below, where you can restore any of them individually.
+              </p>
+            </div>
+            <div className="px-6 pb-6 flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setShowBulkDeleteConfirm(false)}>Cancel</Button>
+              <Button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteTransactions.isPending}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {bulkDeleteTransactions.isPending ? "Deleting…" : "Delete"}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Reset Plan Confirmation Modal */}

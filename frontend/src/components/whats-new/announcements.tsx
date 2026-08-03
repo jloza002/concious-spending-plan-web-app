@@ -88,10 +88,70 @@ function BudgetGraphic() {
 }
 
 /**
+ * A miniature of the transactions table with a couple of rows ticked and the
+ * bulk-action bar that appears once anything is selected.
+ */
+function BulkDeleteGraphic() {
+  const rows: { date: string; desc: string; checked: boolean }[] = [
+    { date: "08/02", desc: "Whole Foods", checked: true },
+    { date: "08/01", desc: "Old Navy — return", checked: true },
+    { date: "07/30", desc: "Netflix", checked: false },
+  ];
+
+  return (
+    <div className="rounded-lg overflow-hidden border border-gray-200 bg-white" aria-hidden>
+      <div
+        className="flex items-center justify-between px-3 py-1.5 text-[10px] font-sans font-bold"
+        style={{ background: `${ORANGE}1A`, color: TEAL }}
+      >
+        <span>2 selected</span>
+        <span className="px-2 py-0.5 rounded text-white" style={{ background: "#EF4444" }}>
+          Delete Selected
+        </span>
+      </div>
+      <div className="flex items-center gap-2 px-3 py-1 bg-gray-50 border-b border-gray-100
+        text-[9px] font-sans font-bold uppercase tracking-wider text-gray-400">
+        <span className="w-3" />
+        <span className="w-9">Date</span>
+        <span className="flex-1">Description</span>
+      </div>
+      {rows.map((row) => (
+        <div
+          key={row.desc}
+          className={`flex items-center gap-2 px-3 py-1.5 border-b border-gray-50 last:border-b-0 ${
+            row.checked ? "bg-orange-50/40" : ""
+          }`}
+        >
+          <span
+            className="w-3 h-3 rounded-sm border flex items-center justify-center text-[8px] font-bold shrink-0"
+            style={{
+              borderColor: row.checked ? ORANGE : "#D1D5DB",
+              background: row.checked ? ORANGE : "transparent",
+              color: "white",
+            }}
+          >
+            {row.checked ? "✓" : ""}
+          </span>
+          <span className="w-9 text-[10px] font-sans text-gray-400">{row.date}</span>
+          <span className="flex-1 text-[11px] font-sans text-gray-800 truncate">{row.desc}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Announcements shown once per account, newest first. Add an entry here when a
  * change gives users something new they can see and use.
  */
 export const ANNOUNCEMENTS: Announcement[] = [
+  {
+    id: "whats-new:bulk-delete-transactions:v1",
+    title: "Delete several transactions at once",
+    body:
+      "Tick the checkboxes on the Transactions tab to select a batch of rows, then Delete Selected. They move to Deleted Transactions, same as deleting one at a time, so you can restore any of them if you select the wrong ones.",
+    graphic: <BulkDeleteGraphic />,
+  },
   {
     id: "whats-new:budget:v1",
     title: "Set a budget for each month",

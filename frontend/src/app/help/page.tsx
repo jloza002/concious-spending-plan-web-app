@@ -215,6 +215,14 @@ export default function HelpPage() {
                 type, or status (all / categorized / uncategorized / duplicates). <strong>Reset Plan</strong>
                 permanently deletes all transactions in the plan.
               </p>
+              <p>
+                To clean up several rows at once — duplicates, a bad import, anything — tick the checkbox
+                on each one, or use the checkbox in the table header to select everything currently shown
+                (if you&apos;re filtered to a search or date range, that selects only the filtered rows).
+                A bar appears with a count and a <strong>Delete Selected</strong> button. Like deleting one
+                row at a time, this is not permanent — the rows move to Deleted Transactions below, where
+                you can restore any of them individually.
+              </p>
             </Section>
 
             <Section id="csv-template" title="The CSV template" figure={<CsvTemplateFigure />}>

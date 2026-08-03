@@ -185,6 +185,48 @@ and brute-forcing the answer. The flow below replaces it.
 
 ---
 
+## Bulk delete transactions (2026-08-03)
+
+### BD1 — Selecting a few rows and deleting them
+- **Given** a plan with several transactions
+- **When** ticking the checkboxes on 3 rows and clicking "Delete Selected"
+- **Then** a confirmation modal names the count, and confirming removes
+  exactly those 3 rows from the table
+
+### BD2 — Deleted rows are recoverable, not gone
+- **Given** a bulk delete just completed
+- **When** opening "Deleted Transactions"
+- **Then** all of them appear there, each individually restorable — the
+  confirmation copy says so rather than claiming this can't be undone,
+  which is why it doesn't need the same weight as Reset Plan
+
+### BD3 — Select all only means "all visible"
+- **Given** a keyword filter narrows the table to 2 of 10 transactions
+- **When** clicking the header checkbox
+- **Then** only those 2 are selected — the other 8 (filtered out) are
+  untouched, and the selection count reads 2
+
+### BD4 — The header checkbox reflects a partial selection
+- **Given** 2 of 5 visible rows are individually ticked
+- **Then** the header checkbox shows the indeterminate (dash) state, not
+  checked or unchecked
+
+### BD5 — A completed delete can't reference stale ids
+- **Given** rows A and B are selected
+- **When** row A is deleted by some other action before the bulk delete runs
+  (e.g. a second browser tab)
+- **Then** the selection silently drops A, so a subsequent bulk delete only
+  ever sends ids that still exist
+
+### BD6 — One account cannot delete another's transactions
+- **When** submitting a transaction id belonging to a different account to
+  `POST /transactions/bulk-delete`
+- **Then** the request is rejected and nothing is deleted, including any
+  ids in the same request that *do* belong to the caller — a partial match
+  fails the whole batch rather than silently completing a subset
+
+---
+
 ## Backlog — untested areas
 
 Rule 2 says to close these out as the areas are touched.

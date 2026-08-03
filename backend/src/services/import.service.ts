@@ -95,6 +95,30 @@ export async function deleteTransaction(transactionId: string, userId: string) {
   });
 }
 
+/**
+ * Soft-delete several transactions in one request.
+ *
+ * Every id must resolve to a transaction owned by this user before anything
+ * is deleted — a partial match (some ids belong to someone else, or don't
+ * exist) rejects the whole request rather than silently deleting the subset
+ * that did match, which could mask a bug in the caller or a manipulated id.
+ */
+export async function bulkDeleteTransactions(transactionIds: string[], userId: string) {
+  const owned = await prisma.transaction.findMany({
+    where: { id: { in: transactionIds }, import: { spendingPlan: { userId } } },
+    select: { id: true },
+  });
+
+  if (owned.length !== new Set(transactionIds).size) {
+    throw new AppError("One or more transactions were not found", 404);
+  }
+
+  await prisma.transaction.updateMany({
+    where: { id: { in: transactionIds } },
+    data: { deletedAt: new Date() },
+  });
+}
+
 /** Restore a soft-deleted transaction */
 export async function restoreTransaction(transactionId: string, userId: string) {
   const transaction = await prisma.transaction.findUnique({

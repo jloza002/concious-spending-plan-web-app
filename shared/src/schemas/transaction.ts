@@ -56,6 +56,15 @@ export const updateTransactionTypeSchema = z.object({
   type: z.enum(["Sale", "Return", "Payment", "Adjustment", "Debit", "Credit"]),
 });
 
+/**
+ * Schema for deleting several transactions in one request. Capped to match
+ * MAX_ROWS on import, so "select all" on even the largest imported plan can
+ * still go through as a single request.
+ */
+export const bulkDeleteTransactionsSchema = z.object({
+  transactionIds: z.array(z.string().uuid()).min(1).max(10_000),
+});
+
 export type ManualTransactionInput = z.infer<typeof manualTransactionSchema>;
 export type CsvTransaction = z.infer<typeof csvTransactionSchema>;
 export type ImportTransactionsInput = z.infer<typeof importTransactionsSchema>;
@@ -63,3 +72,4 @@ export type AssignCategoryInput = z.infer<typeof assignCategorySchema>;
 export type AutoCategorizeRequest = z.infer<typeof autoCategorizeRequestSchema>;
 export type CategorySuggestion = z.infer<typeof categorySuggestionSchema>;
 export type UpdateTransactionTypeInput = z.infer<typeof updateTransactionTypeSchema>;
+export type BulkDeleteTransactionsInput = z.infer<typeof bulkDeleteTransactionsSchema>;

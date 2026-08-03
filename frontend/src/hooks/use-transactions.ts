@@ -85,6 +85,33 @@ export function useDeleteTransaction(planId: string) {
   });
 }
 
+/** Delete several transactions at once — optimistic update, no refetch */
+export function useBulkDeleteTransactions(planId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (transactionIds: string[]) =>
+      api.post(`/transactions/bulk-delete`, { transactionIds }),
+    onMutate: async (transactionIds) => {
+      await queryClient.cancelQueries({ queryKey: ["transactions", planId] });
+      const previous = queryClient.getQueryData<Transaction[]>(["transactions", planId]);
+      const idSet = new Set(transactionIds);
+      queryClient.setQueryData<Transaction[]>(
+        ["transactions", planId],
+        (old) => old?.filter((t) => !idSet.has(t.id))
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["transactions", planId], context.previous);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions", planId, "deleted"] });
+    },
+  });
+}
+
 /** Fetch soft-deleted transactions for a plan */
 export function useDeletedTransactions(planId: string) {
   return useQuery<Transaction[]>({

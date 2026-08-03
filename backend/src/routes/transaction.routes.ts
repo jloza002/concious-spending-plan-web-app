@@ -1,7 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
-import { assignCategorySchema, updateTransactionTypeSchema, accountTypeSchema } from "@csp/shared";
+import {
+  assignCategorySchema,
+  updateTransactionTypeSchema,
+  accountTypeSchema,
+  bulkDeleteTransactionsSchema,
+} from "@csp/shared";
 import * as importService from "../services/import.service.js";
 import * as categoryMappingService from "../services/category-mapping.service.js";
 
@@ -41,6 +46,17 @@ transactionRoutes.patch("/:id/account-type", async (req, res, next) => {
 transactionRoutes.delete("/:id", async (req, res, next) => {
   try {
     await importService.deleteTransaction(req.params.id, req.user!.sub);
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** POST /transactions/bulk-delete - Soft-delete several transactions at once */
+transactionRoutes.post("/bulk-delete", async (req, res, next) => {
+  try {
+    const { transactionIds } = bulkDeleteTransactionsSchema.parse(req.body);
+    await importService.bulkDeleteTransactions(transactionIds, req.user!.sub);
     res.status(204).end();
   } catch (err) {
     next(err);
