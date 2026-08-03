@@ -142,6 +142,49 @@ database, never a deployed one.
 
 ---
 
+## Account recovery (hardened 2026-08-03)
+
+A third-party-style security assessment found the password-reset flow let
+anyone confirm an email was registered and learn exactly which security
+question protected it, with only per-IP rate limiting standing between that
+and brute-forcing the answer. The flow below replaces it.
+
+### AR1 — An unregistered email fails exactly like a wrong answer
+- **Given** `nobody@example.com` has no account
+- **When** submitting the reset form with any question and answer
+- **Then** the error message is the same generic text used for a wrong
+  answer on a real account — nothing distinguishes "no such account" from
+  "wrong guess"
+
+### AR2 — The wrong question fails even with the right answer
+- **Given** an account whose real security question is "What city were you
+  born in?" with answer "Chicago"
+- **When** submitting a *different* question from the dropdown alongside the
+  correct answer text "Chicago"
+- **Then** the reset fails with the same generic message — the question and
+  answer are checked together, not the answer alone
+
+### AR3 — Correct email, question, and answer reset the password
+- **Given** the right combination for a real account
+- **Then** the password updates, every existing session (access + refresh
+  tokens) is invalidated, and the user can sign in with the new password but
+  not any previously-issued token
+
+### AR4 — Five wrong guesses lock the account, independent of IP
+- **Given** an account with 4 prior failed reset attempts this window
+- **When** a 5th guess also fails
+- **Then** the account is locked for 15 minutes — a *correct* answer
+  submitted during the lock still fails with the same generic message, so
+  switching IPs to dodge the per-IP rate limiter doesn't help
+- **And** the lock does not extend itself further while active
+
+### AR5 — Answers are case- and whitespace-insensitive
+- **Given** the real answer is "Chicago"
+- **When** submitting `  chicago  `
+- **Then** the reset succeeds
+
+---
+
 ## Backlog — untested areas
 
 Rule 2 says to close these out as the areas are touched.
@@ -149,7 +192,7 @@ Rule 2 says to close these out as the areas are touched.
 - [ ] CSV import: parsing, the amount-sign convention, duplicate detection
 - [ ] Auto-categorization and `CategoryMapping` memory
 - [ ] Excel export contents and formatting
-- [ ] Auth: registration, login, refresh, password reset, session timeout
+- [ ] Auth: registration, login, refresh, session timeout (password reset covered above)
 - [ ] Plan lock/unlock and its effect on category edits
 - [ ] Net worth trend and savings-rate dashboard charts
 - [ ] Line-item reorder (drag and drop)

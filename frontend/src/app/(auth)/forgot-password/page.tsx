@@ -5,57 +5,22 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 import { PasswordCriteria } from "@/components/ui/password-criteria";
+import { SECURITY_QUESTIONS } from "@/lib/security-questions";
 
-type Step = "email" | "answer" | "success";
+type Step = "form" | "success";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("email");
+  const [step, setStep] = useState<Step>("form");
   const [email, setEmail] = useState("");
-  const [securityQuestion, setSecurityQuestion] = useState("");
+  const [securityQuestion, setSecurityQuestion] = useState<string>(SECURITY_QUESTIONS[0]);
   const [securityAnswer, setSecurityAnswer] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  async function handleEmailSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setIsLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/backend/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        setError(data.message || "Something went wrong. Please try again.");
-        setIsLoading(false);
-        return;
-      }
-
-      if (!data.question) {
-        setError("No account found with that email address.");
-        setIsLoading(false);
-        return;
-      }
-
-      setSecurityQuestion(data.question);
-      setStep("answer");
-    } catch (err) {
-      console.error("Forgot password error:", err);
-      setError("Could not reach the server. Please check your connection and try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function handleResetSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
@@ -83,7 +48,7 @@ export default function ForgotPasswordPage() {
       const res = await fetch("/api/backend/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, securityAnswer, newPassword }),
+        body: JSON.stringify({ email, securityQuestion, securityAnswer, newPassword }),
       });
 
       if (res.ok) {
@@ -91,7 +56,10 @@ export default function ForgotPasswordPage() {
         setTimeout(() => router.push("/login"), 2500);
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.message || "Incorrect answer. Please try again.");
+        setError(
+          data.message ||
+            "We couldn't verify those details. Double-check your email, security question, and answer, then try again."
+        );
       }
     } catch (err) {
       console.error("Reset password error:", err);
@@ -109,14 +77,14 @@ export default function ForgotPasswordPage() {
             Reset Password
           </h1>
           <p className="mt-2 text-sm text-gray-500 font-sans">
-            {step === "email" && "Enter your email to get started."}
-            {step === "answer" && "Answer your security question to reset your password."}
+            {step === "form" &&
+              "Enter your email, the security question you set at sign-up, and your answer."}
             {step === "success" && "Your password has been reset."}
           </p>
         </div>
 
-        {step === "email" && (
-          <form onSubmit={handleEmailSubmit} className="space-y-4">
+        {step === "form" && (
+          <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg font-sans">{error}</div>
             )}
@@ -134,26 +102,25 @@ export default function ForgotPasswordPage() {
                   focus:ring-2 focus:ring-[var(--color-orange)] focus:border-transparent font-sans"
               />
             </div>
-            <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-              {isLoading ? "Looking up..." : "Continue"}
-            </Button>
-            <p className="text-center text-sm text-gray-500 font-sans">
-              <a href="/login" className="text-[var(--color-orange)] hover:underline font-medium">
-                Back to sign in
-              </a>
-            </p>
-          </form>
-        )}
 
-        {step === "answer" && (
-          <form onSubmit={handleResetSubmit} className="space-y-4">
-            {error && (
-              <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg font-sans">{error}</div>
-            )}
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-500 font-sans mb-1">Security question for {email}:</p>
-              <p className="text-sm font-medium text-gray-800 font-sans">{securityQuestion}</p>
+            <div>
+              <label htmlFor="security-question" className="block text-sm font-medium text-gray-700 mb-1 font-sans">
+                Security Question
+              </label>
+              <select
+                id="security-question"
+                value={securityQuestion}
+                onChange={(e) => setSecurityQuestion(e.target.value)}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
+                  focus:ring-2 focus:ring-[var(--color-orange)] focus:border-transparent font-sans text-sm"
+              >
+                {SECURITY_QUESTIONS.map((q) => (
+                  <option key={q} value={q}>{q}</option>
+                ))}
+              </select>
             </div>
+
             <div>
               <label htmlFor="answer" className="block text-sm font-medium text-gray-700 mb-1 font-sans">
                 Your Answer
@@ -169,6 +136,7 @@ export default function ForgotPasswordPage() {
                   focus:ring-2 focus:ring-[var(--color-orange)] focus:border-transparent font-sans"
               />
             </div>
+
             <div>
               <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 mb-1 font-sans">
                 New Password
@@ -182,6 +150,7 @@ export default function ForgotPasswordPage() {
               />
               <PasswordCriteria password={newPassword} />
             </div>
+
             <div>
               <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-1 font-sans">
                 Confirm Password
@@ -194,17 +163,14 @@ export default function ForgotPasswordPage() {
                 autoComplete="new-password"
               />
             </div>
+
             <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
               {isLoading ? "Resetting..." : "Reset Password"}
             </Button>
             <p className="text-center text-sm text-gray-500 font-sans">
-              <button
-                type="button"
-                onClick={() => { setStep("email"); setError(""); }}
-                className="text-[var(--color-orange)] hover:underline font-medium"
-              >
-                Use a different email
-              </button>
+              <a href="/login" className="text-[var(--color-orange)] hover:underline font-medium">
+                Back to sign in
+              </a>
             </p>
           </form>
         )}

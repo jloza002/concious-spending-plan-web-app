@@ -7,6 +7,7 @@ import { prisma } from "../db/client.js";
 import { AppError } from "../middleware/error-handler.js";
 import { requireAuth } from "../middleware/auth.js";
 import { auditLog } from "../services/audit.service.js";
+import { resetPasswordWithSecurityAnswer, GENERIC_RESET_ERROR } from "../services/auth-recovery.service.js";
 import { DEFAULT_FIXED_COSTS, DEFAULT_INVESTMENTS, DEFAULT_SAVINGS } from "@csp/shared";
 
 export const authRoutes = Router();
@@ -246,69 +247,49 @@ authRoutes.get("/security-questions", (_req, res) => {
   res.json({ questions: SECURITY_QUESTIONS });
 });
 
-/** POST /auth/forgot-password — return the user's security question by email */
-authRoutes.post("/forgot-password", async (req, res, next) => {
-  try {
-    const { email } = z.object({ email: z.string().email() }).parse(req.body);
-
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: { securityQuestion: true },
-    });
-
-    if (!user) {
-      throw new AppError("No account found with this email address.", 404);
-    }
-
-    if (!user.securityQuestion) {
-      throw new AppError("This account does not have a security question set up. Please contact support.", 400);
-    }
-
-    res.json({ question: user.securityQuestion });
-  } catch (err) {
-    next(err);
-  }
+/**
+ * POST /auth/reset-password — verify security question + answer together and
+ * reset the password in one step.
+ *
+ * There is deliberately no separate "look up my question by email" endpoint.
+ * The old two-step flow (POST /forgot-password returning the account's real
+ * question, then POST /reset-password to answer it) let anyone confirm an
+ * email was registered and learn exactly which of the six stock questions
+ * protects it, before ever attempting an answer — turning a broad OSINT
+ * problem into a targeted one. The question list itself is not secret (see
+ * GET /auth/security-questions below); what must stay unconfirmed is which
+ * one is set on a specific account and whether that account exists at all.
+ * The client now sends its best guess at the question along with the answer,
+ * and every failure — unknown email, locked account, wrong question, wrong
+ * answer — is indistinguishable from every other.
+ */
+const resetPasswordSchema = z.object({
+  email: z.string().email(),
+  securityQuestion: z.string().min(1).max(255),
+  securityAnswer: z.string().min(1),
+  newPassword: passwordSchema,
 });
 
-/** POST /auth/reset-password — verify security answer and reset password */
 authRoutes.post("/reset-password", async (req, res, next) => {
   try {
-    const { email, securityAnswer, newPassword } = z.object({
-      email: z.string().email(),
-      securityAnswer: z.string().min(1),
-      newPassword: passwordSchema,
-    }).parse(req.body);
+    const { email, securityQuestion, securityAnswer, newPassword } =
+      resetPasswordSchema.parse(req.body);
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || !user.securityAnswerHash) {
-      throw new AppError("Account not found or security question not set.", 400);
+    const newPasswordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+
+    const result = await resetPasswordWithSecurityAnswer({
+      email,
+      securityQuestion,
+      securityAnswer,
+      newPasswordHash,
+    });
+
+    if (!result.ok) {
+      throw new AppError(GENERIC_RESET_ERROR, 400);
     }
-
-    const answerValid = await bcrypt.compare(
-      securityAnswer.toLowerCase().trim(),
-      user.securityAnswerHash
-    );
-
-    if (!answerValid) {
-      throw new AppError("Incorrect security answer.", 401);
-    }
-
-    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
-
-    // Update password, increment tokenVersion to invalidate all sessions, revoke refresh tokens
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: user.id },
-        data: { passwordHash, tokenVersion: { increment: 1 } },
-      }),
-      prisma.refreshToken.updateMany({
-        where: { userId: user.id, revokedAt: null },
-        data: { revokedAt: new Date() },
-      }),
-    ]);
 
     await auditLog({
-      userId: user.id,
+      userId: result.userId!,
       action: "password_reset",
       resource: "auth",
       ipAddress: getClientIp(req),

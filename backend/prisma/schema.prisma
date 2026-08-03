@@ -21,6 +21,10 @@ model User {
 
   // Security question for password reset (no email required)
   securityQuestion   String? @map("security_question") @db.VarChar(255)
+  // Failed security-question reset attempts, for per-account lockout independent
+  // of the IP-based rate limiter (an attacker can rotate IPs, not accounts).
+  resetAttempts      Int       @default(0) @map("reset_attempts")
+  resetLockedUntil   DateTime? @map("reset_locked_until")
   securityAnswerHash String? @map("security_answer_hash")
 
   // Name fields
