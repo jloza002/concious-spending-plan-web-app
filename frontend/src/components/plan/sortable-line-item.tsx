@@ -13,6 +13,8 @@ interface SortableLineItemProps {
   onToggleExclude?: (id: string, excluded: boolean) => void;
   readOnly?: boolean;
   excludeTourAnchor?: boolean;
+  showPlanned?: boolean;
+  plannedAmount?: number;
 }
 
 export function SortableLineItem({
@@ -23,6 +25,8 @@ export function SortableLineItem({
   onToggleExclude,
   readOnly = false,
   excludeTourAnchor,
+  showPlanned,
+  plannedAmount,
 }: SortableLineItemProps) {
   const {
     attributes,
@@ -51,6 +55,8 @@ export function SortableLineItem({
       onToggleExclude={onToggleExclude}
       readOnly={readOnly}
       excludeTourAnchor={excludeTourAnchor}
+      showPlanned={showPlanned}
+      plannedAmount={plannedAmount}
       dragHandleProps={{ ...attributes, ...listeners }}
     />
   );

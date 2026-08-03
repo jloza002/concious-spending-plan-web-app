@@ -2,6 +2,7 @@
 
 import { usePlans, usePlan } from "@/hooks/use-spending-plan";
 import { useTransactions } from "@/hooks/use-transactions";
+import { useBudgetTargets } from "@/hooks/use-budget-targets";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -334,31 +335,45 @@ function CurrentMonthSection({ planId, previousPlanId }: { planId: string; previ
   const { data: plan } = usePlan(planId);
   const { data: transactions } = useTransactions(planId);
   const { data: prevTransactions } = useTransactions(previousPlanId ?? "");
+  const { data: budgetTargets } = useBudgetTargets(plan?.month ?? 0, plan?.year ?? 0);
 
   const spendingVsPlan = useMemo(() => {
     if (!plan || !transactions) return [];
-    const fixedItems = plan.lineItems.filter((i) => i.section === "fixed_costs");
-    const labels = new Set(fixedItems.map((i) => i.label));
-    return fixedItems
-      .map((item) => {
+
+    // "Planned" comes from the Budget page. It used to read PlanLineItem.amount,
+    // which the plan page overwrites with actual spend — so both bars showed the
+    // same number and the chart couldn't say anything.
+    const plannedByLabel: Record<string, number> = {};
+    for (const target of budgetTargets ?? []) {
+      plannedByLabel[target.label] = target.amount;
+    }
+
+    // Union so a budgeted category with no spending still charts (planned, 0),
+    // and spending in an unbudgeted category still charts (0, actual).
+    const fixedLabels = plan.lineItems
+      .filter((i) => i.section === "fixed_costs")
+      .map((i) => i.label);
+    const allLabels = new Set([...fixedLabels, ...Object.keys(plannedByLabel)]);
+
+    return [...allLabels]
+      .map((label) => {
         const actual = transactions
           .filter((t) =>
             !t.isDuplicate &&
             t.type !== "Payment" &&
             t.spendingCategory === "fixed_costs" &&
-            t.spendingSubcategory === item.label &&
-            labels.has(t.spendingSubcategory)
+            t.spendingSubcategory === label
           )
           .reduce((s, t) => s + -Number(t.amount), 0);
         return {
-          name: item.label.length > 14 ? item.label.slice(0, 12) + "…" : item.label,
+          name: label.length > 14 ? label.slice(0, 12) + "…" : label,
           actual: Math.round(actual),
-          planned: Math.round(Number(item.amount)),
+          planned: Math.round(plannedByLabel[label] ?? 0),
         };
       })
       .filter((r) => r.actual > 0 || r.planned > 0)
       .slice(0, 10);
-  }, [plan, transactions]);
+  }, [plan, transactions, budgetTargets]);
 
   const topMovers = useMemo(() => {
     if (!plan || !transactions || !prevTransactions) return [];
@@ -387,7 +402,10 @@ function CurrentMonthSection({ planId, previousPlanId }: { planId: string; previ
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card title="Spending vs Plan" subtitle="Fixed-cost categories — actual vs budgeted">
         {spendingVsPlan.length === 0 ? (
-          <p className="text-sm text-gray-400 italic">No fixed-cost spending categorized in this plan.</p>
+          <p className="text-sm text-gray-400 italic">
+            Nothing to compare yet. Set targets on the Budget page, or categorize
+            fixed-cost transactions.
+          </p>
         ) : (
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={spendingVsPlan}>

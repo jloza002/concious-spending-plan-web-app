@@ -12,6 +12,7 @@ import { exportRoutes } from "./routes/export.routes.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { userRoutes } from "./routes/user.routes.js";
 import { userCategoryRoutes } from "./routes/user-category.routes.js";
+import { budgetTargetRoutes } from "./routes/budget-target.routes.js";
 import { apiV1Routes } from "./routes/api-v1/index.js";
 
 const app = express();
@@ -94,6 +95,7 @@ app.use("/plans", importRoutes);
 app.use("/transactions", transactionRoutes);
 app.use("/category-mappings", categoryMappingRoutes);
 app.use("/user-categories", userCategoryRoutes);
+app.use("/budget-targets", budgetTargetRoutes);
 app.use("/plans", exportRoutes);
 
 // ── Disabled public API (v1) ───────────────────────────────────────────────

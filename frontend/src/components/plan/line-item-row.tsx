@@ -15,6 +15,55 @@ interface LineItemRowProps {
   style?: React.CSSProperties;
   /** Attaches a tour anchor to the first row's exclude toggle. */
   excludeTourAnchor?: boolean;
+  /**
+   * Turns on the Planned / Over-Under columns. Section-level: only Fixed Costs
+   * sets it, so Investments and Savings render exactly as they always have.
+   */
+  showPlanned?: boolean;
+  /** This category's budget for the month. Undefined means it isn't budgeted. */
+  plannedAmount?: number;
+}
+
+const money = (n: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(n);
+
+/**
+ * Actual minus planned. Over budget is the bad direction, so it gets the
+ * warning colour; an unbudgeted category is called out as such rather than
+ * shown as a green underspend, which would read as savings it didn't earn.
+ */
+function OverUnderChip({
+  planned,
+  actual,
+}: {
+  planned: number | undefined;
+  actual: number;
+}) {
+  const base =
+    "inline-block text-[11px] font-sans font-bold px-1.5 py-0.5 rounded-full tabular-nums whitespace-nowrap";
+
+  if (planned === undefined) {
+    return <span className={`${base} bg-gray-100 text-gray-500`}>not budgeted</span>;
+  }
+
+  const diff = actual - planned;
+  if (Math.abs(diff) < 0.5) {
+    return <span className={`${base} bg-gray-100 text-gray-500`}>even</span>;
+  }
+  if (diff > 0) {
+    return (
+      <span className={`${base} bg-red-50 text-red-700`}>+{money(diff)}</span>
+    );
+  }
+  return (
+    <span className={`${base} bg-green-50 text-green-700`}>
+      &minus;{money(Math.abs(diff))}
+    </span>
+  );
 }
 
 function EyeIcon({ off }: { off?: boolean }) {
@@ -52,6 +101,8 @@ export const LineItemRow = forwardRef<HTMLDivElement, LineItemRowProps>(
       dragHandleProps,
       style,
       excludeTourAnchor,
+      showPlanned = false,
+      plannedAmount,
       ...rest
     },
     ref
@@ -107,7 +158,35 @@ export const LineItemRow = forwardRef<HTMLDivElement, LineItemRowProps>(
                 hover:border-gray-300 focus:border-[var(--color-orange)] focus:outline-none py-0.5 ${excluded ? "line-through" : ""}`}
             />
           )}
+
+          {/* Narrow screens can't fit four numeric columns, so the planned
+              figure and its chip fold under the category name instead. */}
+          {showPlanned && (
+            <div className="sm:hidden mt-0.5 flex items-center gap-1.5">
+              <span className="text-[11px] font-sans text-gray-400 tabular-nums whitespace-nowrap">
+                {plannedAmount === undefined
+                  ? "No budget"
+                  : `Planned ${money(plannedAmount)}`}
+              </span>
+              <OverUnderChip planned={plannedAmount} actual={item.amount} />
+            </div>
+          )}
         </div>
+
+        {/* Planned (desktop only — folded under the label on mobile) */}
+        {showPlanned && (
+          <div
+            className={`hidden sm:block w-24 shrink-0 text-right text-sm font-sans tabular-nums text-gray-500 ${
+              excluded ? "opacity-40 line-through" : ""
+            }`}
+          >
+            {plannedAmount === undefined ? (
+              <span className="text-gray-300">&mdash;</span>
+            ) : (
+              money(plannedAmount)
+            )}
+          </div>
+        )}
 
         {/* Amount */}
         <div className={`w-28 sm:w-36 shrink-0 transition-opacity ${excluded ? "opacity-40 line-through" : ""}`}>
@@ -117,6 +196,17 @@ export const LineItemRow = forwardRef<HTMLDivElement, LineItemRowProps>(
             readOnly={readOnly}
           />
         </div>
+
+        {/* Over / Under (desktop only — folded under the label on mobile) */}
+        {showPlanned && (
+          <div
+            className={`hidden sm:flex w-24 shrink-0 justify-end ${
+              excluded ? "opacity-40" : ""
+            }`}
+          >
+            <OverUnderChip planned={plannedAmount} actual={item.amount} />
+          </div>
+        )}
 
         {/* Exclude / include toggle */}
         {onToggleExclude && (

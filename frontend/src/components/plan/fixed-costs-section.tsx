@@ -24,6 +24,8 @@ import type { PlanCalculations, PlanLineItem } from "@csp/shared";
 interface FixedCostsSectionProps {
   items: PlanLineItem[];
   categoryTotals: Record<string, number>;
+  /** Budgeted amount per category label for this plan's month. */
+  plannedAmounts: Record<string, number>;
   calculations: PlanCalculations;
   includeMiscellaneous: boolean;
   onDeleteMiscellaneous: () => void;
@@ -34,6 +36,7 @@ interface FixedCostsSectionProps {
 export function FixedCostsSection({
   items,
   categoryTotals,
+  plannedAmounts,
   calculations,
   includeMiscellaneous,
   onDeleteMiscellaneous,
@@ -42,11 +45,16 @@ export function FixedCostsSection({
 }: FixedCostsSectionProps) {
   const range = SECTION_RANGES[PLAN_SECTIONS.FIXED_COSTS];
 
-  // Only show fixed-cost categories that are actually tied to categorized
-  // transactions. The full category list still lives on the line items (used by
-  // the transaction category dropdown); here we display the in-use ones only.
+  // Show a category if it has categorized transactions OR a budget for this
+  // month. The full category list still lives on the line items (used by the
+  // transaction category dropdown); a budgeted category with nothing spent yet
+  // has to appear too, otherwise the budget silently goes missing here.
   const projected = items
-    .filter((item) => categoryTotals[item.label] !== undefined)
+    .filter(
+      (item) =>
+        categoryTotals[item.label] !== undefined ||
+        plannedAmounts[item.label] !== undefined
+    )
     .map((item) => ({
       ...item,
       amount: categoryTotals[item.label] ?? 0,
@@ -83,25 +91,41 @@ export function FixedCostsSection({
 
       {projected.length === 0 ? (
         <div className="px-4 py-4 bg-white border-b border-gray-100 text-sm font-sans text-gray-400 italic">
-          No fixed costs categorized yet. Categorize transactions on the Transactions tab.
+          No fixed costs categorized yet. Categorize transactions on the Transactions tab,
+          or set targets on the Budget page.
         </div>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={projected.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-            {projected.map((item, i) => (
-              <SortableLineItem
-                key={item.id}
-                item={item}
-                onAmountChange={() => {}}
-                onLabelChange={() => {}}
-                onDelete={() => {}}
-                onToggleExclude={onToggleExclude}
-                excludeTourAnchor={i === 0}
-                readOnly
-              />
-            ))}
-          </SortableContext>
-        </DndContext>
+        <>
+          {/* Column header. Widths mirror the cells in LineItemRow. */}
+          <div className="hidden sm:flex items-center gap-3 px-4 py-1.5 bg-gray-50 border-b border-gray-100
+            text-[10px] font-sans font-bold uppercase tracking-wider text-gray-400">
+            <span className="flex-1">Category</span>
+            <span className="w-24 shrink-0 text-right">Planned</span>
+            <span className="w-36 shrink-0 text-right">Actual</span>
+            <span className="w-24 shrink-0 text-right">Over / Under</span>
+            {/* Matches the row's exclude toggle so the columns line up. */}
+            <span className="w-8 shrink-0" />
+          </div>
+
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={projected.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+              {projected.map((item, i) => (
+                <SortableLineItem
+                  key={item.id}
+                  item={item}
+                  onAmountChange={() => {}}
+                  onLabelChange={() => {}}
+                  onDelete={() => {}}
+                  onToggleExclude={onToggleExclude}
+                  excludeTourAnchor={i === 0}
+                  showPlanned
+                  plannedAmount={plannedAmounts[item.label]}
+                  readOnly
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
+        </>
       )}
 
       {/* Miscellaneous (auto-calculated) */}

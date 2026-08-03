@@ -11,6 +11,9 @@ import {
  * that for some reason skipped the seed step), backfill the defaults.
  */
 export async function ensureUserCategoryLibrary(userId: string): Promise<void> {
+  // Counts soft-deleted rows too, deliberately. Archived categories still hold
+  // their slots in the (user, section, label) unique index, so reseeding with
+  // skipDuplicates would silently no-op and leave the user with nothing.
   const count = await prisma.userCategory.count({ where: { userId } });
   if (count > 0) return;
 
@@ -26,7 +29,7 @@ export async function ensureUserCategoryLibrary(userId: string): Promise<void> {
 export async function listUserCategories(userId: string) {
   await ensureUserCategoryLibrary(userId);
   return prisma.userCategory.findMany({
-    where: { userId },
+    where: { userId, deletedAt: null },
     orderBy: [{ section: "asc" }, { sortOrder: "asc" }],
   });
 }
@@ -43,7 +46,10 @@ export async function addUserCategory(
   const existing = await prisma.userCategory.findUnique({
     where: { userId_section_label: { userId, section, label } },
   });
-  if (existing) return existing;
+  // An archived category still occupies this unique key, so a plain "return
+  // existing" would make re-adding a deleted category look like it worked
+  // while the row stayed invisible everywhere. Revive it instead.
+  if (existing && !existing.deletedAt) return existing;
 
   const maxOrder = await prisma.userCategory.findFirst({
     where: { userId, section },
@@ -51,14 +57,18 @@ export async function addUserCategory(
     select: { sortOrder: true },
   });
 
-  const created = await prisma.userCategory.create({
-    data: {
-      userId,
-      section,
-      label,
-      sortOrder: (maxOrder?.sortOrder ?? 0) + 1,
-    },
-  });
+  const sortOrder = (maxOrder?.sortOrder ?? 0) + 1;
+
+  // Reviving an archived category keeps its id, so budget targets from the
+  // months before it was archived stay attached to it.
+  const created = existing
+    ? await prisma.userCategory.update({
+        where: { id: existing.id },
+        data: { deletedAt: null, sortOrder },
+      })
+    : await prisma.userCategory.create({
+        data: { userId, section, label, sortOrder },
+      });
 
   // Append to all unlocked plans for this user
   const unlockedPlans = await prisma.spendingPlan.findMany({
@@ -101,7 +111,7 @@ export async function renameUserCategory(
   newLabel: string
 ) {
   const cat = await prisma.userCategory.findFirst({
-    where: { id: categoryId, userId },
+    where: { id: categoryId, userId, deletedAt: null },
   });
   if (!cat) return null;
   const oldLabel = cat.label;
@@ -158,7 +168,7 @@ export async function renameUserCategory(
  */
 export async function deleteUserCategory(userId: string, categoryId: string) {
   const cat = await prisma.userCategory.findFirst({
-    where: { id: categoryId, userId },
+    where: { id: categoryId, userId, deletedAt: null },
   });
   if (!cat) return null;
 
@@ -193,7 +203,12 @@ export async function deleteUserCategory(userId: string, categoryId: string) {
         spendingSubcategory: cat.label,
       },
     }),
-    prisma.userCategory.delete({ where: { id: categoryId } }),
+    // Soft delete, so budget targets for months this category was already
+    // budgeted in keep resolving. Locked plans keep their line items too.
+    prisma.userCategory.update({
+      where: { id: categoryId },
+      data: { deletedAt: new Date() },
+    }),
   ]);
 
   return { id: categoryId };

@@ -120,8 +120,8 @@ lineItemRoutes.delete("/:id/items/:itemId", async (req, res, next) => {
       throw new AppError("Line item not found", 404);
     }
 
-    const userCat = await prisma.userCategory.findUnique({
-      where: { userId_section_label: { userId, section: item.section, label: item.label } },
+    const userCat = await prisma.userCategory.findFirst({
+      where: { userId, section: item.section, label: item.label, deletedAt: null },
     });
     if (userCat) {
       await userCategoryService.deleteUserCategory(userId, userCat.id);
@@ -163,8 +163,8 @@ lineItemRoutes.patch("/:id/items/:itemId/rename", async (req, res, next) => {
       throw new AppError("Line item not found", 404);
     }
 
-    const userCat = await prisma.userCategory.findUnique({
-      where: { userId_section_label: { userId, section: item.section, label: item.label } },
+    const userCat = await prisma.userCategory.findFirst({
+      where: { userId, section: item.section, label: item.label, deletedAt: null },
     });
     if (userCat) {
       await userCategoryService.renameUserCategory(userId, userCat.id, newLabel);

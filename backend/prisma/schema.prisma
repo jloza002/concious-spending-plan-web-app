@@ -51,6 +51,7 @@ model User {
   refreshTokens    RefreshToken[]
   auditLogs        AuditLog[]
   userCategories   UserCategory[]
+  budgetTargets    BudgetTarget[]
 
   @@map("users")
 }
@@ -247,19 +248,50 @@ model Transaction {
 // ──────────────────────────────────────────
 
 model UserCategory {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  section   String   @db.VarChar(50) // 'fixed_costs', 'investments', 'savings'
-  label     String   @db.VarChar(255)
-  sortOrder Int      @map("sort_order")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  section   String    @db.VarChar(50) // 'fixed_costs', 'investments', 'savings'
+  label     String    @db.VarChar(255)
+  sortOrder Int       @map("sort_order")
+  // Soft delete: budget targets for past months keep resolving after a category
+  // is removed from the library, so historical plans stay intact.
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  budgetTargets BudgetTarget[]
 
   @@unique([userId, section, label])
   @@index([userId])
   @@map("user_categories")
+}
+
+// ──────────────────────────────────────────
+// Monthly Budget (planned vs actual)
+// ──────────────────────────────────────────
+
+// A per-month spending target for one fixed-cost category. Deliberately NOT
+// tied to SpendingPlan: a user can budget a month before creating its plan,
+// and deleting a plan must never wipe budget history.
+model BudgetTarget {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  userCategoryId String   @map("user_category_id") @db.Uuid
+  month          Int
+  year           Int
+  amount         Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: categories are soft-deleted, so this should never
+  // fire — but if anything ever hard-deletes one, history is protected.
+  userCategory UserCategory @relation(fields: [userCategoryId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, userCategoryId, month, year])
+  @@index([userId, month, year])
+  @@map("budget_targets")
 }
 
 model CategoryMapping {

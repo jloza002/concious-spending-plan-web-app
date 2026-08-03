@@ -1,6 +1,24 @@
 import type { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
 
+/**
+ * `instanceof ZodError` alone is not reliable here. @csp/shared is built as
+ * CommonJS while this server runs as ESM, so a schema defined in shared throws
+ * the ZodError from zod's CJS build while this module holds the ESM one — two
+ * distinct classes, so instanceof returns false and a plain validation failure
+ * would surface as a 500. Match on shape as well so validation errors from
+ * shared schemas are reported as 400s like any other.
+ */
+function isZodError(err: unknown): err is ZodError {
+  if (err instanceof ZodError) return true;
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { name?: unknown }).name === "ZodError" &&
+    Array.isArray((err as { issues?: unknown }).issues)
+  );
+}
+
 /** Central error handling middleware for Express */
 export function errorHandler(
   err: Error,
@@ -9,11 +27,11 @@ export function errorHandler(
   _next: NextFunction
 ): void {
   // Zod validation errors
-  if (err instanceof ZodError) {
+  if (isZodError(err)) {
     res.status(400).json({
       error: "Validation Error",
       message: "Invalid request data",
-      details: err.errors,
+      details: err.issues,
     });
     return;
   }

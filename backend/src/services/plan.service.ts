@@ -76,7 +76,9 @@ export async function createPlan(
   } else {
     await ensureUserCategoryLibrary(userId);
     const library = await prisma.userCategory.findMany({
-      where: { userId },
+      // deletedAt filter matters: without it a new plan would resurrect
+      // archived categories as line items and back into the category dropdown.
+      where: { userId, deletedAt: null },
       orderBy: [{ section: "asc" }, { sortOrder: "asc" }],
     });
 

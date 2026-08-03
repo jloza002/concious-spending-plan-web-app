@@ -4,6 +4,7 @@ import { use, useMemo } from "react";
 import { usePlan, useUpdatePlan } from "@/hooks/use-spending-plan";
 import { useUpdateLineItem, useAddLineItem, useDeleteLineItem, useReorderLineItems, useToggleExcludeLineItem } from "@/hooks/use-line-items";
 import { useTransactions } from "@/hooks/use-transactions";
+import { useBudgetTargets } from "@/hooks/use-budget-targets";
 import { useTogglePlanLock } from "@/hooks/use-user-categories";
 import { NetWorthSection } from "@/components/plan/net-worth-section";
 import { IncomeSection } from "@/components/plan/income-section";
@@ -50,6 +51,15 @@ export default function PlanPage({
   const toggleExclude = useToggleExcludeLineItem(planId);
   const { data: transactions } = useTransactions(planId);
   const toggleLock = useTogglePlanLock(planId);
+  // Budgets are keyed by month/year, not by plan, so they're fetched separately.
+  // The query stays disabled until the plan (and its month) has loaded.
+  const { data: budgetTargets } = useBudgetTargets(plan?.month ?? 0, plan?.year ?? 0);
+
+  const plannedAmounts = useMemo<Record<string, number>>(() => {
+    const out: Record<string, number> = {};
+    for (const target of budgetTargets ?? []) out[target.label] = target.amount;
+    return out;
+  }, [budgetTargets]);
 
   // Aggregate transaction amounts by fixed_costs subcategory.
   // Only count subcategories that still exist as line items in this plan — a
@@ -226,6 +236,7 @@ export default function PlanPage({
         <FixedCostsSection
           items={fixedCostItems}
           categoryTotals={fixedCategoryTotals}
+          plannedAmounts={plannedAmounts}
           calculations={calculations}
           includeMiscellaneous={plan.includeMiscellaneous}
           onDeleteMiscellaneous={() => debouncedUpdate({ includeMiscellaneous: false })}

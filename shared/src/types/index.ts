@@ -44,6 +44,20 @@ export interface UserCategory {
   updatedAt: string;
 }
 
+/**
+ * A category's spending target for one month. `label` is denormalized from the
+ * category so past months still render correctly after the category is
+ * archived (soft-deleted) out of the library.
+ */
+export interface BudgetTarget {
+  id: string;
+  userCategoryId: string;
+  label: string;
+  month: number;
+  year: number;
+  amount: number;
+}
+
 export interface PlanLineItem {
   id: string;
   spendingPlanId: string;
