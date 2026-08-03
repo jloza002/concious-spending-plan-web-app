@@ -150,6 +150,50 @@ export function FixedCostsFigure() {
   );
 }
 
+/* Budget page: category picker + planned vs actual with an over/under chip */
+export function BudgetFigure() {
+  const rows: [string, string, string, string, "over" | "under" | "even"][] = [
+    ["Rent", "$2,100", "$2,100", "even", "even"],
+    ["Groceries", "$650", "$712", "+$62", "over"],
+    ["Insurance", "$220", "—", "−$220", "under"],
+  ];
+  const chipFill: Record<string, string> = { over: "#FEE2E2", under: "#DCFCE7", even: "#F3F4F6" };
+  const chipText: Record<string, string> = { over: "#B91C1C", under: "#15803D", even: GRAY };
+
+  return (
+    <Frame viewBox="0 0 460 240" label="Budget page: planned vs actual with an over/under chip">
+      <rect x="0" y="0" width="460" height="240" fill="#fff" />
+      <rect x="16" y="16" width="428" height="40" rx="8" fill={TEAL} />
+      <text x="32" y="40" fontSize="14" fontWeight="700" fill={BEIGE}>AUGUST 2026 BUDGET</text>
+      <rect x="360" y="26" width="68" height="20" rx="10" fill={BEIGE} />
+      <text x="394" y="40" textAnchor="middle" fontSize="10" fontWeight="700" fill={TEAL}>4 / 10</text>
+
+      <text x="32" y="76" fontSize="10" fontWeight="700" fill={GRAY}>CATEGORY</text>
+      <text x="290" y="76" textAnchor="end" fontSize="10" fontWeight="700" fill={GRAY}>PLANNED</text>
+      <text x="350" y="76" textAnchor="end" fontSize="10" fontWeight="700" fill={GRAY}>ACTUAL</text>
+      <text x="428" y="76" textAnchor="end" fontSize="10" fontWeight="700" fill={GRAY}>OVER / UNDER</text>
+
+      {rows.map(([label, planned, actual, chip, tone], i) => {
+        const y = 100 + i * 34;
+        return (
+          <g key={i}>
+            <text x="32" y={y + 6} fontSize="13" fill={DARK}>{label}</text>
+            <text x="290" y={y + 6} textAnchor="end" fontSize="12" fill={GRAY}>{planned}</text>
+            <text x="350" y={y + 6} textAnchor="end" fontSize="13" fontWeight="600" fill={DARK}>{actual}</text>
+            <rect x="368" y={y - 13} width="60" height="20" rx="10" fill={chipFill[tone]} />
+            <text x="398" y={y + 1} textAnchor="middle" fontSize="10" fontWeight="700" fill={chipText[tone]}>{chip}</text>
+          </g>
+        );
+      })}
+
+      <line x1="16" y1="206" x2="444" y2="206" stroke={BORDER} />
+      <text x="32" y="226" fontSize="11" fontStyle="italic" fill={GRAY}>
+        Insurance is budgeted but unspent — it shows up now instead of disappearing.
+      </text>
+    </Frame>
+  );
+}
+
 /* 5 — Transactions table with open category dropdown */
 export function TransactionsFigure() {
   const rows = [

@@ -61,6 +61,20 @@ PR or commit message:
 
 Propose fixes for anything found rather than noting it and moving on.
 
+## 6. New frontend features get help-page instructions
+
+When a change adds something a user can see and use, add a section to
+`frontend/src/app/help/page.tsx` (append its id to `SECTIONS` and add a
+matching `<Section>`) explaining how to use it, following the existing
+sections as the pattern. If the explanation benefits from a picture, add a
+schematic SVG illustration to
+`frontend/src/components/help/illustrations.tsx` in the same house style
+(the `Frame` wrapper, the app's real color tokens, no real financial data).
+
+This is a different surface from rule 4's popup: the popup is a one-time
+nudge that a feature exists; the help page is the durable reference a user
+returns to later. A feature needs both.
+
 ## Deploy note
 
 `backend/Dockerfile` runs `prisma migrate deploy` before starting the server, so

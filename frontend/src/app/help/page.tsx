@@ -5,6 +5,7 @@ import {
   CreatePlanFigure,
   NetWorthFigure,
   FixedCostsFigure,
+  BudgetFigure,
   TransactionsFigure,
   CsvTemplateFigure,
   DuplicatesFigure,
@@ -24,6 +25,7 @@ const SECTIONS = [
   { id: "creating-a-plan", title: "Creating a plan" },
   { id: "net-worth-income", title: "Net worth & income" },
   { id: "fixed-costs", title: "Fixed costs & categories" },
+  { id: "budget", title: "Setting a budget" },
   { id: "transactions", title: "Transactions & importing" },
   { id: "csv-template", title: "The CSV template" },
   { id: "duplicates", title: "Duplicates & account types" },
@@ -155,6 +157,34 @@ export default function HelpPage() {
                 line to exclude it. The line turns transparent and drops out of that section&apos;s total, so your
                 guilt-free budget updates immediately — handy for testing &quot;what if I cut this category?&quot;.
                 Click the icon again to include it. Exclusions are saved on the plan and don&apos;t delete anything.
+              </p>
+            </Section>
+
+            <Section id="budget" title="Setting a budget" figure={<BudgetFigure />}>
+              <p>
+                The <strong>Budget</strong>{" "}
+                page is where you set spending targets — separate from Fixed
+                Costs, which only shows what you&apos;ve actually spent. Pick up to <strong>10 fixed-cost
+                categories</strong> for the month and enter what you plan to spend on each. Changes save
+                automatically.
+              </p>
+              <p>
+                Once a month has a budget, your plan&apos;s Fixed Costs section gains{" "}
+                <strong>Planned</strong> and <strong>Over / Under</strong>{" "}
+                columns next to Actual, and the
+                Dashboard&apos;s &ldquo;Spending vs Plan&rdquo; chart compares the two. A category you
+                budgeted but haven&apos;t spent on yet still shows up — it used to be hidden until you spent
+                something.
+              </p>
+              <p>
+                Each month&apos;s budget is independent, so the categories and amounts you track in August
+                don&apos;t have to match September. If a month is empty and the previous one has a budget, a{" "}
+                <strong>Copy last month&apos;s budget</strong> button appears to carry it forward as a
+                starting point.
+              </p>
+              <p>
+                Deleting a category from your library removes it from future budgeting, but any month you
+                already budgeted it for keeps showing that history — nothing you&apos;ve tracked disappears.
               </p>
             </Section>
 
