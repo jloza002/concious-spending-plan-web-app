@@ -32,7 +32,11 @@ const money = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n);
 
-/** Over budget is the bad direction, so it gets the warning colour. */
+/**
+ * Over budget is the bad direction, so it gets the warning colour.
+ * Renders nothing for an unbudgeted category — the column stays blank until a
+ * target exists to compare against, rather than labeling every unbudgeted row.
+ */
 function OverUnderChip({
   planned,
   actual,
@@ -46,7 +50,7 @@ function OverUnderChip({
 
   switch (result.kind) {
     case "not-budgeted":
-      return <span className={`${base} bg-gray-100 text-gray-500`}>not budgeted</span>;
+      return null;
     case "even":
       return <span className={`${base} bg-gray-100 text-gray-500`}>even</span>;
     case "over":

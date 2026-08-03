@@ -53,7 +53,7 @@ database, never a deployed one.
   | Overspent | $650 | $712 | `+$62`, red |
   | Underspent | $180 | $164 | `−$16`, green |
   | Budgeted, nothing spent | $220 | $0 | `−$220`, green |
-  | Spent, never budgeted | — | $288 | `not budgeted`, grey |
+  | Spent, never budgeted | — | $288 | *(blank — no chip until the category has a budget)* |
 
 - **And** the budgeted-but-unspent row is visible — before this feature those rows were filtered out entirely
 - **And** Investments and Savings show **no** planned columns
