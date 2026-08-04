@@ -261,6 +261,7 @@ export default function PlanPage({
           onLabelChange={handleLabelChange}
           onAddItem={() => handleAddItem("investments")}
           onDeleteItem={handleDeleteItem}
+          onToggleExclude={handleToggleExclude}
           onReorder={handleReorder}
           isAddingItem={addItem.isPending}
         />

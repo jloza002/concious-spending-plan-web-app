@@ -123,7 +123,8 @@ database, never a deployed one.
 - **Then** percentages read 0%, never `NaN%` or `Infinity%`
 
 ### P4 — Excluding a line
-- **Given** a fixed-cost or savings line
+- **Given** a fixed-cost, investment, or savings line (Investments gained the
+  eye icon 2026-08-04 — see PA5)
 - **When** clicking the eye icon
 - **Then** the line greys out, drops from its section total, and guilt-free updates
 
@@ -169,6 +170,37 @@ remove button, a line item's delete button, and the Notes section's
 expand/collapse toggle. Drag-to-reorder wasn't exercised (gesture-based, not
 a discrete click) but its code path was read and matches the pattern used by
 every other reorder-capable section.
+
+### PA5 — Investments gained the exclude (eye) toggle (2026-08-04)
+
+A follow-up report claimed three things were broken: Savings' "Add your own,"
+delete on Investments/Savings rows, and the eye icon not isolating its row
+across Fixed Costs/Investments/Savings. Re-tested all three on a **brand-new
+account and a brand-new browser tab** (see the methodology note below) —
+"Add your own" and delete both worked correctly, and the eye toggle correctly
+isolated to just the clicked row with no cross-row or cross-section bleed.
+The one real, confirmed gap: **Investments never had an eye icon at all** —
+`InvestmentsSection` simply never accepted or passed an `onToggleExclude`
+prop, unlike `SavingsSection`. Added it, threading through the same
+`onToggleExclude`/`useToggleExcludeLineItem` plumbing Savings already used;
+`investmentsTotal`'s calculation already excluded flagged rows (it was just
+unreachable from the UI), so no calculation changes were needed.
+
+- **Given** an Investments line with amount $500 (excluded) and another with
+  amount $300 (not excluded)
+- **Then** `INVESTMENTS TOTAL` reads $300 — the excluded row's amount drops
+  out, same as it already did for Fixed Costs and Savings
+
+**Methodology note, for next time:** the first attempt to reproduce the eye-
+icon report gave an alarming false positive — three unrelated line items
+appeared to vanish after one click. Investigating further showed this was an
+artifact of reusing one browser tab across dozens of logins, plan
+navigations, and HMR reloads earlier in the same long session — stale timers
+and duplicate listeners fired against the wrong plan. Re-running the exact
+same click in a **fresh tab against a freshly registered account** gave a
+clean, correct result. When a report doesn't match what the code plainly
+does, suspect the test session before the product — but verify that
+suspicion by actually isolating and re-running, don't just assert it.
 
 ---
 

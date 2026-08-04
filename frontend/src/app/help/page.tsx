@@ -153,8 +153,8 @@ export default function HelpPage() {
                 (see below). Categories are personal to your account and shared across your plans.
               </p>
               <p>
-                <strong>Excluding a line (what-if):</strong> click the eye icon on any Fixed Costs or Savings
-                line to exclude it. The line turns transparent and drops out of that section&apos;s total, so your
+                <strong>Excluding a line (what-if):</strong> click the eye icon on any Fixed Costs, Investments,
+                or Savings line to exclude it. The line turns transparent and drops out of that section&apos;s total, so your
                 guilt-free budget updates immediately — handy for testing &quot;what if I cut this category?&quot;.
                 Click the icon again to include it. Exclusions are saved on the plan and don&apos;t delete anything.
               </p>

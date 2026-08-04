@@ -28,6 +28,7 @@ interface InvestmentsSectionProps {
   onLabelChange: (id: string, label: string) => void;
   onAddItem: () => void;
   onDeleteItem: (id: string) => void;
+  onToggleExclude: (id: string, excluded: boolean) => void;
   onReorder: (items: { id: string; sortOrder: number }[]) => void;
   isAddingItem?: boolean;
 }
@@ -39,6 +40,7 @@ export function InvestmentsSection({
   onLabelChange,
   onAddItem,
   onDeleteItem,
+  onToggleExclude,
   onReorder,
   isAddingItem = false,
 }: InvestmentsSectionProps) {
@@ -82,6 +84,7 @@ export function InvestmentsSection({
               onAmountChange={onAmountChange}
               onLabelChange={onLabelChange}
               onDelete={onDeleteItem}
+              onToggleExclude={onToggleExclude}
             />
           ))}
         </SortableContext>
