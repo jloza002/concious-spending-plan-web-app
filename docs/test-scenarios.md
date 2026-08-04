@@ -270,6 +270,49 @@ and brute-forcing the answer. The flow below replaces it.
 
 ---
 
+## Button sweeps (standing practice — rule 7)
+
+A sweep means clicking every interactive control on a page or surface and
+confirming each one actually does what it claims — not just the one thing a
+bug report named or a new feature added. Run one:
+
+- **When a bug report names a specific button.** The "Add your own" bug
+  (below) is the reason this is a rule: the reported button had a second,
+  unreported bug that only surfaced because the fix was checked live and the
+  sweep kept going instead of stopping at the one repro.
+- **Before calling a multi-control feature tested.** If a change adds more
+  than one clickable thing to a page, click all of them, not just the
+  primary action.
+
+**What to check per control:** the click actually fires (not just "looks
+right" — verify a real network request or state change, since a handler can
+be silently wired to the wrong callback); the result matches what the label
+promises; a second click in immediate succession doesn't collide, race, or
+duplicate; destructive actions confirm before committing; disabled/pending
+states actually block input rather than just looking greyed out.
+
+### Swept so far
+
+- [x] **Plan page** (2026-08-04) — Add your own (Investments + Savings),
+  line-item delete, exclude/include toggle, Miscellaneous remove, Lock/Unlock
+  plan, Notes expand/collapse. See "Add your own" below for the bug this
+  caught. Drag-to-reorder was read, not click-tested (gesture-based).
+- [ ] Transactions page — bulk-select/delete covered under "Bulk delete
+  transactions" below; Import CSV, Add Transaction, Filters,
+  Auto-Categorize, Reset Plan, and the category/type/account dropdowns have
+  been exercised incidentally while building other features, not swept as
+  their own pass.
+- [ ] Budget page — built and functionally tested during development, not
+  swept as a dedicated pass.
+- [ ] Auth pages (login, register, forgot-password) — thoroughly exercised
+  during the password-reset hardening, but that was scenario-driven
+  (AR1–AR5 below), not an exhaustive click-through of every control.
+- [ ] Dashboard
+- [ ] Preview & Export
+- [ ] Profile / account settings
+
+---
+
 ## Backlog — untested areas
 
 Rule 2 says to close these out as the areas are touched.

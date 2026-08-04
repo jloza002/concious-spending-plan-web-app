@@ -75,6 +75,26 @@ This is a different surface from rule 4's popup: the popup is a one-time
 nudge that a feature exists; the help page is the durable reference a user
 returns to later. A feature needs both.
 
+## 7. A bug report on one button is a sweep of that page's buttons
+
+When someone reports a specific button as broken, don't stop at fixing that
+one. Click through every other interactive control on the same page or
+surface — other buttons, toggles, confirmations — before calling it done. The
+"Add your own" investigation on 2026-08-04 is why this is a rule and not a
+one-off habit: the reported button turned out to have a second, unreported
+bug (a double-click race) that only showed up because the fix was verified
+live instead of assumed from the code, and the sweep caught it while already
+in the area.
+
+The same applies going the other direction: a **new** feature with more than
+one interactive control gets its whole set clicked through, not just the
+primary action, before it's called tested.
+
+Record which pages have had a full sweep in the "Button sweeps" section of
+[`docs/test-scenarios.md`](docs/test-scenarios.md), and extend that list as
+new surfaces get covered — it works the same way as the untested-areas
+backlog in rule 2.
+
 ## Deploy note
 
 `backend/Dockerfile` runs `prisma migrate deploy` before starting the server, so
