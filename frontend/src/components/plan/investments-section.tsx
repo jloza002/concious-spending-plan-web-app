@@ -29,6 +29,7 @@ interface InvestmentsSectionProps {
   onAddItem: () => void;
   onDeleteItem: (id: string) => void;
   onReorder: (items: { id: string; sortOrder: number }[]) => void;
+  isAddingItem?: boolean;
 }
 
 export function InvestmentsSection({
@@ -39,6 +40,7 @@ export function InvestmentsSection({
   onAddItem,
   onDeleteItem,
   onReorder,
+  isAddingItem = false,
 }: InvestmentsSectionProps) {
   const range = SECTION_RANGES[PLAN_SECTIONS.INVESTMENTS];
 
@@ -85,7 +87,7 @@ export function InvestmentsSection({
         </SortableContext>
       </DndContext>
 
-      <AddItemButton onClick={onAddItem} />
+      <AddItemButton onClick={onAddItem} disabled={isAddingItem} />
       <TotalRow label="INVESTMENTS TOTAL" amount={calculations.investmentsTotal} hasActions />
     </div>
   );

@@ -129,6 +129,49 @@ database, never a deployed one.
 
 ---
 
+## "Add your own" (Investments / Savings) — fixed 2026-08-04
+
+**Bug report:** users said the Investments "+ Add your own" button did nothing.
+Root cause: the button always sent the literal label `"New Item"`. The backend
+treats adding an already-existing category name as a no-op (correct for the
+Transactions page's "type a name to add it" flow, where re-adding an existing
+name should just reuse it silently) — but the button never renames that
+library entry even after the user renames their copy of the row on the plan,
+so the *second* click ever, in either section, collided with the first
+`"New Item"` and silently did nothing. Confirmed via two identical `POST
+/plans/:id/items` requests returning byte-identical plans.
+
+### PA1 — Clicking it twice in a row adds two distinct rows
+- **Given** an Investments section with no custom rows yet
+- **When** clicking "+ Add your own" twice, with a normal pause between clicks
+- **Then** two new rows appear: "New Item" and "New Item 2" — not one row,
+  and not a duplicate
+
+### PA2 — Two clicks close enough together don't race
+- **Given** the button was just clicked and its request hasn't returned yet
+- **Then** the button is disabled until it does, closing the window where two
+  rapid clicks would both compute the same "next" label from the same
+  not-yet-updated category list and collide
+- *Regression:* before the button disabled itself, a genuine double-click
+  (both `handleAddItem` calls firing before either response returned) still
+  produced only one new row instead of two
+
+### PA3 — Works the same in Savings, independently of Investments
+- **Given** Investments already has "New Item" through "New Item 5"
+- **When** clicking "+ Add your own" under Savings Goals for the first time
+- **Then** the new row is plain "New Item" — the two sections don't share a
+  collision namespace
+
+### PA4 — Plan-page button sweep (2026-08-04)
+Also clicked through and confirmed still working: Lock plan / Unlock plan
+(status banner and dashboard-visibility text flip correctly), Miscellaneous's
+remove button, a line item's delete button, and the Notes section's
+expand/collapse toggle. Drag-to-reorder wasn't exercised (gesture-based, not
+a discrete click) but its code path was read and matches the pattern used by
+every other reorder-capable section.
+
+---
+
 ## Validation and errors (pre-existing, covered 2026-08-03)
 
 ### V1 — Shared schemas return 400

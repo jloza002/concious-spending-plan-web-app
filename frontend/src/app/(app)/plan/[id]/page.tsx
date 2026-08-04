@@ -5,7 +5,8 @@ import { usePlan, useUpdatePlan } from "@/hooks/use-spending-plan";
 import { useUpdateLineItem, useAddLineItem, useDeleteLineItem, useReorderLineItems, useToggleExcludeLineItem } from "@/hooks/use-line-items";
 import { useTransactions } from "@/hooks/use-transactions";
 import { useBudgetTargets } from "@/hooks/use-budget-targets";
-import { useTogglePlanLock } from "@/hooks/use-user-categories";
+import { useTogglePlanLock, useUserCategories } from "@/hooks/use-user-categories";
+import { nextAvailableLabel } from "@/lib/unique-label";
 import { NetWorthSection } from "@/components/plan/net-worth-section";
 import { IncomeSection } from "@/components/plan/income-section";
 import { FixedCostsSection } from "@/components/plan/fixed-costs-section";
@@ -49,6 +50,7 @@ export default function PlanPage({
   const deleteItem = useDeleteLineItem(planId);
   const reorderItems = useReorderLineItems(planId);
   const toggleExclude = useToggleExcludeLineItem(planId);
+  const { data: userCategories } = useUserCategories();
   const { data: transactions } = useTransactions(planId);
   const toggleLock = useTogglePlanLock(planId);
   // Budgets are keyed by month/year, not by plan, so they're fetched separately.
@@ -154,7 +156,15 @@ export default function PlanPage({
   }
 
   function handleAddItem(section: "fixed_costs" | "investments" | "savings") {
-    addItem.mutate({ section, label: "New Item", amount: 0 });
+    // A colliding label is a silent no-op server-side (see nextAvailableLabel's
+    // comment) — check against the account's whole library for this section,
+    // not just this plan's visible rows, since a category can be renamed here
+    // without ever renaming the underlying library entry.
+    const existingLabels = (userCategories ?? [])
+      .filter((c) => c.section === section)
+      .map((c) => c.label);
+    const label = nextAvailableLabel(existingLabels);
+    addItem.mutate({ section, label, amount: 0 });
   }
 
   function handleDeleteItem(id: string) {
@@ -252,6 +262,7 @@ export default function PlanPage({
           onAddItem={() => handleAddItem("investments")}
           onDeleteItem={handleDeleteItem}
           onReorder={handleReorder}
+          isAddingItem={addItem.isPending}
         />
 
         <SavingsSection
@@ -262,6 +273,7 @@ export default function PlanPage({
           onAddItem={() => handleAddItem("savings")}
           onDeleteItem={handleDeleteItem}
           onToggleExclude={handleToggleExclude}
+          isAddingItem={addItem.isPending}
           onReorder={handleReorder}
         />
 

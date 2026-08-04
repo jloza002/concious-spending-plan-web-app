@@ -9,7 +9,13 @@ import type {
 } from "@csp/shared";
 import { useRef, useCallback } from "react";
 
-/** Add a new line item to a plan section */
+/**
+ * Add a new line item to a plan section. The backend adds (or revives) a
+ * matching entry in the user's category library as a side effect, so the
+ * library query is invalidated too — otherwise a second add computed from a
+ * stale library (e.g. "New Item 2" still looking free right after the first
+ * add created it) collides server-side and silently does nothing.
+ */
 export function useAddLineItem(planId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -17,6 +23,7 @@ export function useAddLineItem(planId: string) {
       api.post<SpendingPlan>(`/plans/${planId}/items`, data),
     onSuccess: (data) => {
       queryClient.setQueryData(["plan", planId], data);
+      queryClient.invalidateQueries({ queryKey: ["user-categories"] });
     },
   });
 }

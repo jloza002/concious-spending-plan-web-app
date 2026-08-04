@@ -30,6 +30,7 @@ interface SavingsSectionProps {
   onDeleteItem: (id: string) => void;
   onToggleExclude: (id: string, excluded: boolean) => void;
   onReorder: (items: { id: string; sortOrder: number }[]) => void;
+  isAddingItem?: boolean;
 }
 
 export function SavingsSection({
@@ -41,6 +42,7 @@ export function SavingsSection({
   onDeleteItem,
   onToggleExclude,
   onReorder,
+  isAddingItem = false,
 }: SavingsSectionProps) {
   const range = SECTION_RANGES[PLAN_SECTIONS.SAVINGS];
 
@@ -89,7 +91,7 @@ export function SavingsSection({
         </SortableContext>
       </DndContext>
 
-      <AddItemButton onClick={onAddItem} />
+      <AddItemButton onClick={onAddItem} disabled={isAddingItem} />
       <TotalRow label="SAVINGS TOTAL" amount={calculations.savingsTotal} hasActions />
     </div>
   );
