@@ -8,6 +8,33 @@ database, never a deployed one.
 
 ---
 
+## Regression pass procedure (live Test environment)
+
+Rule 3 of [`CLAUDE.md`](../CLAUDE.md) requires this pass, clean, before ever
+asking the user for a `Main` go-ahead. It runs against the real deployed
+Test environment (separate Vercel project + Koyeb App/Postgres, auto-deployed
+from the `Test` branch) — not localhost, and not the disposable database used
+for the scenarios below.
+
+1. `pnpm test` from the repo root — must be green.
+2. Confirm both the Vercel Test deploy and the Koyeb Test deploy succeeded,
+   and `GET <koyeb-test-url>/health` responds.
+3. Sign in to the live Vercel Test URL with a **dedicated QA account** — not
+   the account holding data migrated from local dev — and walk every
+   scenario in this file end-to-end (Budget, What's New, Plan calculations,
+   "Add your own," Validation and errors, Account recovery, Bulk delete) plus
+   the full "Button sweeps" checklist below, against the real deployed
+   frontend and backend.
+4. Verify each control the way "Button sweeps" already defines: a real
+   network request or state change, not just visual appearance.
+5. Log every deviation as a punch-list item, report it to the user, fix, push
+   to `Test`, and repeat from step 1 until clean.
+
+Only once this pass is clean does the assistant ask the user whether to
+promote to `Main` — never push `Main` unprompted, even after a clean pass.
+
+---
+
 ## Budget
 
 ### B1 — Budget a month for the first time

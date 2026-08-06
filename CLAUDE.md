@@ -28,12 +28,32 @@ Database-backed integration tests live in `backend/src/**/*.integration.test.ts`
 and are skipped automatically unless `DATABASE_URL` points at a **disposable**
 database — never a deployed one.
 
-## 3. Push in order: local → Test → Main
+## 3. Push in order: local → Test → Main, gated by a live regression pass
 
-Never push straight to `Main`. Commit locally, push to `Test`, confirm it is
-healthy, then promote the same commit to `Main`. `Main` is the deploy branch:
-pushing to it triggers the Vercel frontend deploy, so it should only ever
-receive commits that have already sat on `Test`.
+Never push straight to `Main`. Commit locally, push to `Test` — Vercel and
+Koyeb both auto-deploy `Test` on every push via their own native Git
+integrations (separate project/App from production, own database, own
+secrets). Then, before `Main` is even brought up as an option:
+
+1. Run `pnpm test` (the full Vitest suite) — it must be green.
+2. Run a full live regression pass against the deployed Test URLs: walk
+   every given/when/then scenario in
+   [`docs/test-scenarios.md`](docs/test-scenarios.md), including the
+   "Button sweeps" checklist, through the real Vercel Test frontend and
+   real Koyeb Test backend — never localhost. Use a dedicated QA account,
+   not the account holding real migrated data, so a sweep never mutates
+   real records. See test-scenarios.md's "Regression pass procedure" for
+   the operational checklist.
+3. Report findings as a punch list in chat. Fix anything broken, push the
+   fix to `Test`, and repeat steps 1–2 until the pass is clean.
+4. Only after a clean pass, ask the user explicitly whether to promote to
+   `Main`. Wait for an explicit yes — never push `Main` unprompted, even
+   after a clean pass.
+
+`Main` is the production deploy branch: pushing it triggers the Vercel
+production deploy and is what the production Koyeb App watches. It should
+only ever receive commits that already passed a clean `Test` regression
+pass and got explicit sign-off.
 
 ## 4. New frontend features announce themselves
 
@@ -101,4 +121,6 @@ backlog in rule 2.
 a Koyeb container migrates itself on boot. Vercel and Koyeb deploy
 independently, so for a schema change the frontend can go live against a
 not-yet-migrated database. Apply migrations ahead of the code deploy when a
-change is not backward compatible.
+change is not backward compatible. This applies separately to Test and Main —
+they are entirely separate Vercel projects, Koyeb Apps, and databases, each
+migrating itself independently on its own boot.
