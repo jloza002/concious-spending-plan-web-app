@@ -728,7 +728,7 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
               {importAccount === "from_file" && missingAccountTypeCount > 0 && (
                 <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
                   <p className="text-xs text-amber-800 font-sans">
-                    <span className="font-semibold">{missingAccountTypeCount}</span> row{missingAccountTypeCount === 1 ? "" : "s"} don&apos;t specify an account type in the file — they&apos;ll import without one. Pick a specific account type above to apply it to every row instead.
+                    <span className="font-semibold">{missingAccountTypeCount}</span> row{missingAccountTypeCount === 1 ? "" : "s"} {missingAccountTypeCount === 1 ? "doesn't" : "don't"} specify an account type in the file — {missingAccountTypeCount === 1 ? "it'll" : "they'll"} import without one. Pick a specific account type above to apply it to every row instead.
                   </p>
                 </div>
               )}
