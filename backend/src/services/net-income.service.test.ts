@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 // and never touches it — mirrors the pattern in plan.service.test.ts.
 vi.mock("../db/client.js", () => ({ prisma: {} }));
 
-const { sumIncome } = await import("./net-income.service.js");
+const { sumIncome, resolveEffectiveNetIncome } = await import("./net-income.service.js");
 
 describe("sumIncome", () => {
   it("reports zero count for a plan with no income transactions — the fallback signal", () => {
@@ -84,5 +84,27 @@ describe("sumIncome", () => {
     );
     expect(count).toBe(1);
     expect(total).toBe(200);
+  });
+});
+
+describe("resolveEffectiveNetIncome", () => {
+  // Regression coverage for a real bug caught in live Test-environment
+  // verification: recomputeNetIncome used to leave netMonthlyIncome
+  // untouched when the count dropped to zero, which meant untagging the
+  // last income transaction did NOT restore the original manually-typed
+  // figure — it left the stale auto-computed total sitting there forever.
+
+  it("uses the computed total once any income transaction exists", () => {
+    expect(resolveEffectiveNetIncome(2, 3500, 7075)).toBe(3500);
+  });
+
+  it("actively reverts to the manual value once the count drops to zero — not a no-op", () => {
+    // The scenario that broke: manual was 7075, tagging one deposit computed
+    // 100, then untagging it must produce 7075 again, not 100.
+    expect(resolveEffectiveNetIncome(0, 100, 7075)).toBe(7075);
+  });
+
+  it("a zero manual baseline is still a valid revert target", () => {
+    expect(resolveEffectiveNetIncome(0, 500, 0)).toBe(0);
   });
 });

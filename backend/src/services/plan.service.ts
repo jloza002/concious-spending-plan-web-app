@@ -53,9 +53,15 @@ export async function createPlan(
 
   let carriedGross = 0;
   let carriedNet = 0;
+  let carriedNetManual = 0;
   if (prevPlan) {
     carriedGross = Number(prevPlan.grossMonthlyIncome);
     carriedNet = Number(prevPlan.netMonthlyIncome);
+    // The manual *baseline* carries from the previous plan's own baseline, not
+    // its possibly-auto-computed effective value — otherwise a new plan with
+    // no income transactions yet would have nothing sensible to fall back to
+    // if one got tagged and then untagged.
+    carriedNetManual = Number(prevPlan.netMonthlyIncomeManual);
   }
 
   if (copyFromPlanId) {
@@ -128,6 +134,7 @@ export async function createPlan(
       // which already implies the user wants the source plan's structure.
       grossMonthlyIncome: copyFromPlanId ? undefined : carriedGross,
       netMonthlyIncome: copyFromPlanId ? undefined : carriedNet,
+      netMonthlyIncomeManual: copyFromPlanId ? undefined : carriedNetManual,
       lineItems: {
         create: lineItemsToCreate,
       },
@@ -331,9 +338,17 @@ export async function updatePlan(
     throw new AppError("Spending plan not found", 404);
   }
 
+  // A manual edit to netMonthlyIncome is also the new manual fallback baseline
+  // — keep both columns in lockstep so a later "all income transactions
+  // removed" recompute has the right value to revert to.
+  const updateData =
+    data.netMonthlyIncome !== undefined
+      ? { ...data, netMonthlyIncomeManual: data.netMonthlyIncome }
+      : data;
+
   const plan = await prisma.spendingPlan.update({
     where: { id: planId },
-    data,
+    data: updateData,
     include: {
       lineItems: { orderBy: [{ section: "asc" }, { sortOrder: "asc" }] },
     },
