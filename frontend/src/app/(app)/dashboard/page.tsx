@@ -407,7 +407,7 @@ function FixedCostsPieCard({ period, rangePlans }: { period: Period; rangePlans:
           No fixed-cost spending yet for this {period === "month" ? "month" : period === "year" ? "year" : "range"}.
         </p>
       ) : (
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10 pb-6">
           <div className="w-[220px] h-[220px] shrink-0">
             <FixedCostsPieChart slices={pieSlices} highlighted={highlighted} onSliceClick={handleSliceClick} />
           </div>
