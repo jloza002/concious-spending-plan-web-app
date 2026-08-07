@@ -525,6 +525,49 @@ expense category exactly as before.
 
 ---
 
+## Post-launch fixes (2026-08-07)
+
+Five fixes reported after the income-linkage/dashboard/mandatory-account-type
+batch went live on Test.
+
+### FX1 — Auto-computed income collapses behind a dropdown arrow
+- **Given** a plan with at least one deposit tagged Income
+- **Then** the Income section shows one "NET MONTHLY INCOME" row with the
+  total and a collapsed ▼ arrow — not the full per-category breakdown
+- **When** clicking that row
+- **Then** it expands (▲) to show the per-category breakdown underneath, and
+  collapses again on a second click
+
+### FX2 — Fixed costs pie chart sits full-width under Net Worth over time
+- **Given** the dashboard with ≥2 locked months (trend charts showing)
+- **Then** "Fixed costs by category" renders as its own full-width card
+  directly below "Net Worth over time," above the Savings/Investment and
+  Income trend charts — not sharing a row with Spending vs Plan / Top Movers
+
+### FX3 — Add Transaction offers Debit, not Adjustment
+- **Given** the "+ Add Transaction" modal
+- **Then** the Type selector offers Sale, Return, Payment, and Debit —
+  Adjustment is no longer an option
+
+### FX4 — Adjustment removed from every type dropdown
+- **Given** any transaction's "Click to change type" control
+- **Then** the option list is Sale, Return, Payment, Debit, Credit (plus any
+  plan-specific custom types) — Adjustment is not offered
+- **Given** a transaction that already has type Adjustment from before this
+  change
+- **Then** it still displays correctly (existing data isn't touched); picking
+  a new type from the dropdown moves it off Adjustment permanently, since
+  Adjustment can no longer be re-selected
+
+### FX5 — A newly added transaction's date displays correctly immediately
+- **Given** the Transactions page
+- **When** adding a manual transaction dated e.g. 2026-08-07
+- **Then** its row shows `2026-08-07` right away, the same short form every
+  other row uses — not a full ISO timestamp
+  (`2026-08-07T00:00:00.000Z`) that only self-corrects after a refresh
+
+---
+
 ## Button sweeps (standing practice — rule 7)
 
 A sweep means clicking every interactive control on a page or surface and

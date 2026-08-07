@@ -206,24 +206,32 @@ export default function DashboardPage() {
 
       {/* Trend charts */}
       {showTrends && (
-        <>
-          <Card title="Net Worth over time" subtitle="Click a point to open that plan">
-            <NetWorthTrendChart data={trendSeries} onPointClick={handleChartClick} />
-          </Card>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card title="Savings + Investment Rate" subtitle="% of net income to investments and savings">
-              <SavingsInvestmentChart data={trendSeries} />
-            </Card>
-
-            <Card title="Income trend" subtitle="Net monthly income">
-              <IncomeTrendChart data={trendSeries} />
-            </Card>
-          </div>
-        </>
+        <Card title="Net Worth over time" subtitle="Click a point to open that plan">
+          <NetWorthTrendChart data={trendSeries} onPointClick={handleChartClick} />
+        </Card>
       )}
 
-      {/* Period detail: Spending vs Plan, Top Movers, pie chart — all period-aware */}
+      {/* Fixed costs by category — full width, right under the net worth trend */}
+      {selected && (
+        <FixedCostsPieCard
+          period={period}
+          rangePlans={selectRangePlans(period, lockedPlans, selected)}
+        />
+      )}
+
+      {showTrends && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card title="Savings + Investment Rate" subtitle="% of net income to investments and savings">
+            <SavingsInvestmentChart data={trendSeries} />
+          </Card>
+
+          <Card title="Income trend" subtitle="Net monthly income">
+            <IncomeTrendChart data={trendSeries} />
+          </Card>
+        </div>
+      )}
+
+      {/* Period detail: Spending vs Plan, Top Movers — both period-aware */}
       {selected && (
         <PeriodDetailSection
           period={period}
@@ -278,9 +286,11 @@ function KpiCard({
   );
 }
 
-function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function Card({
+  title, subtitle, children, dataTour,
+}: { title: string; subtitle?: string; children: React.ReactNode; dataTour?: string }) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm" data-tour={dataTour}>
       <div className="mb-3">
         <h3 className="font-display font-bold text-[#15302F]">{title}</h3>
         {subtitle && <p className="text-xs text-gray-500 font-sans">{subtitle}</p>}
@@ -299,8 +309,6 @@ function PeriodDetailSection({
   rangePlans: { id: string }[];
   comparePlans: { id: string }[];
 }) {
-  const router = useRouter();
-  const [highlighted, setHighlighted] = useState<string | null>(null);
   const rangeIds = useMemo(() => rangePlans.map((p) => p.id), [rangePlans]);
   const compareIds = useMemo(() => comparePlans.map((p) => p.id), [comparePlans]);
   const { data: summary } = useCategorySummary(rangeIds, compareIds);
@@ -324,24 +332,12 @@ function PeriodDetailSection({
       .slice(0, 6);
   }, [summary]);
 
-  const pieSlices = useMemo(() => buildPieSlices(summary?.actual ?? {}), [summary]);
-  const pieTotal = pieSlices.reduce((s, sl) => s + sl.value, 0);
-
   const noCompareReason =
     period === "month"
       ? "Needs a prior locked month for comparison."
       : period === "year"
       ? "Needs a prior year with locked months for comparison."
       : "Top movers compares two periods — switch to Month or Year to see it.";
-
-  function handleSliceClick(label: string) {
-    if (period === "month" && rangePlans[0] && !label.startsWith("Other (")) {
-      router.push(`/plan/${rangePlans[0].id}/import?category=${encodeURIComponent(label)}`);
-      return;
-    }
-    // Year/All-time: no single plan to open — just highlight the slice.
-    setHighlighted((prev) => (prev === label ? null : label));
-  }
 
   if (rangePlans.length === 0) return null;
 
@@ -376,44 +372,68 @@ function PeriodDetailSection({
           </ul>
         )}
       </Card>
-
-      <Card
-        title="Fixed costs by category"
-        subtitle={period === "month" ? "Click a slice to see those transactions" : "Click a slice to highlight it"}
-      >
-        {pieSlices.length === 0 ? (
-          <p className="text-sm text-gray-400 italic">
-            No fixed-cost spending yet for this {period === "month" ? "month" : period === "year" ? "year" : "range"}.
-          </p>
-        ) : (
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            <FixedCostsPieChart slices={pieSlices} highlighted={highlighted} onSliceClick={handleSliceClick} />
-            <ul className="w-full sm:w-1/2 space-y-1">
-              {pieSlices.map((slice) => (
-                <li
-                  key={slice.label}
-                  onClick={() => handleSliceClick(slice.label)}
-                  className={`flex items-center justify-between gap-2 text-xs font-sans py-1 cursor-pointer rounded px-1.5 ${
-                    highlighted === slice.label ? "bg-gray-50" : ""
-                  }`}
-                >
-                  <span className="flex items-center gap-1.5 truncate">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: slice.color }} />
-                    <span className="truncate text-gray-700">{slice.label}</span>
-                  </span>
-                  <span className="tabular-nums text-gray-500 shrink-0">
-                    {fmt(slice.value)} · {pieTotal > 0 ? Math.round((slice.value / pieTotal) * 100) : 0}%
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {/* Accessible fallback: recharts' Pie exposes nothing to screen readers natively. */}
-            <span className="sr-only">
-              Fixed costs by category: {pieSlices.map((s) => `${s.label} ${fmt(s.value)}`).join(", ")}.
-            </span>
-          </div>
-        )}
-      </Card>
     </div>
+  );
+}
+
+/** Full-width fixed-costs pie chart, positioned right under the net worth trend. */
+function FixedCostsPieCard({ period, rangePlans }: { period: Period; rangePlans: { id: string }[] }) {
+  const router = useRouter();
+  const [highlighted, setHighlighted] = useState<string | null>(null);
+  const rangeIds = useMemo(() => rangePlans.map((p) => p.id), [rangePlans]);
+  const { data: summary } = useCategorySummary(rangeIds, []);
+  const pieSlices = useMemo(() => buildPieSlices(summary?.actual ?? {}), [summary]);
+  const pieTotal = pieSlices.reduce((s, sl) => s + sl.value, 0);
+
+  function handleSliceClick(label: string) {
+    if (period === "month" && rangePlans[0] && !label.startsWith("Other (")) {
+      router.push(`/plan/${rangePlans[0].id}/import?category=${encodeURIComponent(label)}`);
+      return;
+    }
+    // Year/All-time: no single plan to open — just highlight the slice.
+    setHighlighted((prev) => (prev === label ? null : label));
+  }
+
+  if (rangePlans.length === 0) return null;
+
+  return (
+    <Card
+      dataTour="dash-pie"
+      title="Fixed costs by category"
+      subtitle={period === "month" ? "Click a slice to see those transactions" : "Click a slice to highlight it"}
+    >
+      {pieSlices.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">
+          No fixed-cost spending yet for this {period === "month" ? "month" : period === "year" ? "year" : "range"}.
+        </p>
+      ) : (
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <FixedCostsPieChart slices={pieSlices} highlighted={highlighted} onSliceClick={handleSliceClick} />
+          <ul className="w-full sm:w-1/2 space-y-1">
+            {pieSlices.map((slice) => (
+              <li
+                key={slice.label}
+                onClick={() => handleSliceClick(slice.label)}
+                className={`flex items-center justify-between gap-2 text-xs font-sans py-1 cursor-pointer rounded px-1.5 ${
+                  highlighted === slice.label ? "bg-gray-50" : ""
+                }`}
+              >
+                <span className="flex items-center gap-1.5 truncate">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: slice.color }} />
+                  <span className="truncate text-gray-700">{slice.label}</span>
+                </span>
+                <span className="tabular-nums text-gray-500 shrink-0">
+                  {fmt(slice.value)} · {pieTotal > 0 ? Math.round((slice.value / pieTotal) * 100) : 0}%
+                </span>
+              </li>
+            ))}
+          </ul>
+          {/* Accessible fallback: recharts' Pie exposes nothing to screen readers natively. */}
+          <span className="sr-only">
+            Fixed costs by category: {pieSlices.map((s) => `${s.label} ${fmt(s.value)}`).join(", ")}.
+          </span>
+        </div>
+      )}
+    </Card>
   );
 }

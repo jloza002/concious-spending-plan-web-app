@@ -84,8 +84,13 @@ export const DASHBOARD_TOUR: TourStep[] = [
     body: "Net worth, savings rate, fixed-cost share, and guilt-free budget — aggregated for the range you chose.",
   },
   {
+    selector: '[data-tour="dash-pie"]',
+    title: "Fixed costs by category",
+    body: "A breakdown of your fixed costs, following the time range you picked above. Click a slice in Month view to jump straight to those transactions.",
+  },
+  {
     selector: '[data-tour="dash-period-detail"]',
-    title: "Spending vs Plan, Top Movers, and a pie chart",
-    body: "All three now follow the time range you picked above, not just the selected month. The pie chart breaks fixed costs down by category — click a slice in Month view to jump straight to those transactions.",
+    title: "Spending vs Plan and Top Movers",
+    body: "Both now follow the time range you picked above, not just the selected month.",
   },
 ];

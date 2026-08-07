@@ -1,8 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { SectionHeader } from "./section-header";
 import { LineItemRow } from "./line-item-row";
-import { TotalRow } from "./total-row";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import type { PlanLineItem } from "@csp/shared";
 
@@ -34,6 +34,10 @@ export function IncomeSection({
     .filter((item) => categoryTotals[item.label] !== undefined)
     .map((item) => ({ ...item, amount: categoryTotals[item.label] ?? 0 }));
 
+  // Collapsed by default: the total is the headline figure, and the
+  // per-category breakdown is optional detail behind the arrow.
+  const [showBreakdown, setShowBreakdown] = useState(false);
+
   return (
     <div className="rounded-lg overflow-hidden shadow-sm">
       <SectionHeader title="INCOME" />
@@ -51,21 +55,49 @@ export function IncomeSection({
 
       {isAutoComputed ? (
         <>
-          {projected.map((item, i) => (
-            <LineItemRow
-              key={item.id}
-              item={item}
-              onAmountChange={() => {}}
-              onToggleExclude={onToggleExclude}
-              excludeTourAnchor={i === 0}
-              readOnly
-            />
-          ))}
-          <TotalRow label="NET MONTHLY INCOME" amount={netMonthlyIncome} />
+          <button
+            type="button"
+            onClick={() => setShowBreakdown((v) => !v)}
+            aria-expanded={showBreakdown}
+            className="w-full flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            <span className="flex items-center gap-1.5 font-sans font-bold text-sm text-[var(--color-orange)]">
+              NET MONTHLY INCOME
+              <span
+                className={`text-[10px] text-gray-400 transition-transform ${showBreakdown ? "rotate-180" : ""}`}
+                aria-hidden="true"
+              >
+                ▼
+              </span>
+            </span>
+            <div className="w-28 sm:w-36 shrink-0">
+              <CurrencyInput
+                value={netMonthlyIncome}
+                onChange={() => {}}
+                readOnly
+                className="font-bold text-[var(--color-orange)]"
+              />
+            </div>
+          </button>
+          {showBreakdown && (
+            <>
+              {projected.map((item, i) => (
+                <LineItemRow
+                  key={item.id}
+                  item={item}
+                  onAmountChange={() => {}}
+                  onToggleExclude={onToggleExclude}
+                  excludeTourAnchor={i === 0}
+                  readOnly
+                />
+              ))}
+            </>
+          )}
           <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-sans text-gray-500 italic">
-            Auto-calculated from your tagged income transactions. Untag a
-            deposit on the Transactions tab to go back to entering this by
-            hand.
+            Auto-calculated from your tagged income transactions.{" "}
+            {showBreakdown ? "" : "Click the total to see what it's made of. "}
+            Untag a deposit on the Transactions tab to go back to entering
+            this by hand.
           </div>
         </>
       ) : (

@@ -4,6 +4,49 @@ import { AppError } from "../middleware/error-handler.js";
 import { normalizeDescription } from "../utils/normalize.js";
 import { recomputeNetIncome, recomputeNetIncomeForPlans } from "./net-income.service.js";
 
+interface RawTransactionRow {
+  id: string;
+  importId: string;
+  transactionDate: Date;
+  postDate: Date;
+  description: string;
+  originalCategory: string | null;
+  type: string;
+  amount: unknown;
+  memo: string | null;
+  spendingCategory: string | null;
+  spendingSubcategory: string | null;
+  accountType: string | null;
+  isDuplicate: boolean;
+  isManual: boolean;
+}
+
+/**
+ * Shape a raw Prisma transaction row into the wire format the frontend
+ * expects — dates as plain "YYYY-MM-DD" strings, amount as a number. Every
+ * endpoint that returns a transaction must go through this: skipping it (as
+ * addManualTransaction once did) leaves Date objects to be JSON-serialized
+ * as full ISO timestamps, which only self-corrects on the next full refetch.
+ */
+function formatTransaction(t: RawTransactionRow) {
+  return {
+    id: t.id,
+    importId: t.importId,
+    transactionDate: t.transactionDate.toISOString().split("T")[0],
+    postDate: t.postDate.toISOString().split("T")[0],
+    description: t.description,
+    originalCategory: t.originalCategory,
+    type: t.type,
+    amount: Number(t.amount),
+    memo: t.memo,
+    spendingCategory: t.spendingCategory,
+    spendingSubcategory: t.spendingSubcategory,
+    accountType: t.accountType,
+    isDuplicate: t.isDuplicate,
+    isManual: t.isManual,
+  };
+}
+
 /**
  * Import parsed CSV transactions into a spending plan.
  * Aggregates with existing transactions and marks duplicates.
@@ -188,7 +231,7 @@ export async function addManualTransaction(
     include: { transactions: true },
   });
 
-  return importRecord.transactions[0];
+  return formatTransaction(importRecord.transactions[0]);
 }
 
 /** Get all transactions for a spending plan */
@@ -215,22 +258,7 @@ export async function getTransactions(planId: string, userId: string) {
   type Tx = ImportWithTx["transactions"][number];
 
   return imports.flatMap((imp: ImportWithTx) =>
-    imp.transactions.map((t: Tx) => ({
-      id: t.id,
-      importId: t.importId,
-      transactionDate: t.transactionDate.toISOString().split("T")[0],
-      postDate: t.postDate.toISOString().split("T")[0],
-      description: t.description,
-      originalCategory: t.originalCategory,
-      type: t.type,
-      amount: Number(t.amount),
-      memo: t.memo,
-      spendingCategory: t.spendingCategory,
-      spendingSubcategory: t.spendingSubcategory,
-      accountType: t.accountType,
-      isDuplicate: t.isDuplicate,
-      isManual: t.isManual,
-    }))
+    imp.transactions.map((t: Tx) => formatTransaction(t))
   );
 }
 
@@ -258,20 +286,7 @@ export async function getDeletedTransactions(planId: string, userId: string) {
 
   return imports.flatMap((imp: ImportWithTx) =>
     imp.transactions.map((t: Tx) => ({
-      id: t.id,
-      importId: t.importId,
-      transactionDate: t.transactionDate.toISOString().split("T")[0],
-      postDate: t.postDate.toISOString().split("T")[0],
-      description: t.description,
-      originalCategory: t.originalCategory,
-      type: t.type,
-      amount: Number(t.amount),
-      memo: t.memo,
-      spendingCategory: t.spendingCategory,
-      spendingSubcategory: t.spendingSubcategory,
-      accountType: t.accountType,
-      isDuplicate: t.isDuplicate,
-      isManual: t.isManual,
+      ...formatTransaction(t),
       deletedAt: t.deletedAt?.toISOString() ?? null,
     }))
   );

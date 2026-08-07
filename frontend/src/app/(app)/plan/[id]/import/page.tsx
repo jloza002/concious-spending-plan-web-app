@@ -924,7 +924,7 @@ function AddTransactionModal({ onClose, onAdd, isAdding }: AddTransactionModalPr
                 <option value="Sale">Sale</option>
                 <option value="Return">Return</option>
                 <option value="Payment">Payment</option>
-                <option value="Adjustment">Adjustment</option>
+                <option value="Debit">Debit</option>
               </select>
             </div>
           </div>
@@ -1044,7 +1044,10 @@ function AccountSelect({ transaction, onSelect, disabled = false }: AccountSelec
 
 // ─── Type Select ──────────────────────────────────────────────────────────────
 
-const BUILT_IN_TYPES = ["Sale", "Return", "Payment", "Adjustment", "Debit", "Credit"] as const;
+// "Adjustment" was removed as a selectable type, but stays in TYPE_STYLES below
+// so any transaction still carrying it from before renders with a real color
+// instead of falling back to the generic "custom type" style.
+const BUILT_IN_TYPES = ["Sale", "Return", "Payment", "Debit", "Credit"] as const;
 type BuiltInType = (typeof BUILT_IN_TYPES)[number];
 
 const TYPE_STYLES: Record<string, string> = {
