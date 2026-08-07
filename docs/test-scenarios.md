@@ -562,7 +562,12 @@ states actually block input rather than just looking greyed out.
 - [ ] Auth pages (login, register, forgot-password) — thoroughly exercised
   during the password-reset hardening, but that was scenario-driven
   (AR1–AR5 below), not an exhaustive click-through of every control.
-- [ ] Dashboard
+- [x] **Dashboard** (2026-08-07) — Month/Year/All-time toggle (all three),
+  pie chart click-to-drill (Month mode) and click-to-highlight/un-highlight
+  (Year mode) both swept live; caught and fixed a singular/plural grammar bug
+  in the mandatory-account-type warning while sweeping the Import CSV modal
+  on the same pass. Month dropdown and "Open this plan" link read, not
+  independently click-swept (pre-existing, unchanged controls).
 - [ ] Preview & Export
 - [ ] Profile / account settings
 
