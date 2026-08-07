@@ -111,7 +111,7 @@ export function FixedCostsPieChart({
   onSliceClick: (label: string) => void;
 }) {
   return (
-    <ResponsiveContainer width="100%" height={220} className="sm:w-1/2">
+    <ResponsiveContainer width="100%" height={220}>
       <PieChart>
         <Pie
           data={slices}

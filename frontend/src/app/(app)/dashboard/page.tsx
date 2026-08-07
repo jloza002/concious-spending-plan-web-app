@@ -407,18 +407,20 @@ function FixedCostsPieCard({ period, rangePlans }: { period: Period; rangePlans:
           No fixed-cost spending yet for this {period === "month" ? "month" : period === "year" ? "year" : "range"}.
         </p>
       ) : (
-        <div className="flex flex-col sm:flex-row items-center gap-4">
-          <FixedCostsPieChart slices={pieSlices} highlighted={highlighted} onSliceClick={handleSliceClick} />
-          <ul className="w-full sm:w-1/2 space-y-1">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10">
+          <div className="w-[220px] h-[220px] shrink-0">
+            <FixedCostsPieChart slices={pieSlices} highlighted={highlighted} onSliceClick={handleSliceClick} />
+          </div>
+          <ul className="w-full max-w-xs sm:w-80 space-y-1">
             {pieSlices.map((slice) => (
               <li
                 key={slice.label}
                 onClick={() => handleSliceClick(slice.label)}
-                className={`flex items-center justify-between gap-2 text-xs font-sans py-1 cursor-pointer rounded px-1.5 ${
+                className={`flex items-center justify-between gap-3 text-xs font-sans py-1 cursor-pointer rounded px-1.5 ${
                   highlighted === slice.label ? "bg-gray-50" : ""
                 }`}
               >
-                <span className="flex items-center gap-1.5 truncate">
+                <span className="flex items-center gap-1.5 min-w-0">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: slice.color }} />
                   <span className="truncate text-gray-700">{slice.label}</span>
                 </span>
