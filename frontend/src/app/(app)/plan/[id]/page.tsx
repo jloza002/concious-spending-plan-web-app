@@ -86,11 +86,47 @@ export default function PlanPage({
     return totals;
   }, [transactions, plan]);
 
+  // Aggregate transaction amounts by income subcategory. Unlike fixed costs,
+  // amounts are summed as-is (income is already positive in this app's sign
+  // convention) and Payment-type rows are NOT skipped — banks frequently
+  // describe real payroll deposits with a "Payment" type.
+  const incomeCategoryTotals = useMemo<Record<string, number>>(() => {
+    if (!transactions || !plan) return {};
+    const validLabels = new Set(
+      plan.lineItems.filter((i) => i.section === "income").map((i) => i.label)
+    );
+    const totals: Record<string, number> = {};
+    for (const t of transactions) {
+      if (
+        t.spendingCategory !== "income" ||
+        !t.spendingSubcategory ||
+        !validLabels.has(t.spendingSubcategory) ||
+        t.isDuplicate ||
+        t.amount <= 0
+      ) continue;
+      totals[t.spendingSubcategory] = (totals[t.spendingSubcategory] ?? 0) + t.amount;
+    }
+    return totals;
+  }, [transactions, plan]);
+
+  const hasIncomeTransactions = useMemo(
+    () => (transactions ?? []).some((t) => t.spendingCategory === "income" && !t.isDuplicate),
+    [transactions]
+  );
+
   // Override plan calculations with transaction-based fixed costs, dropping any
   // line the user has excluded (per-line "what-if") from its section total.
   const calculations = useMemo(() => {
     if (!plan) return null;
-    const net = plan.netMonthlyIncome;
+    const excludedIncomeLabels = new Set(
+      plan.lineItems.filter((i) => i.section === "income" && i.excluded).map((i) => i.label)
+    );
+    const net = hasIncomeTransactions
+      ? Object.entries(incomeCategoryTotals).reduce(
+          (s, [label, v]) => (excludedIncomeLabels.has(label) ? s : s + v),
+          0
+        )
+      : plan.netMonthlyIncome;
     const excludedFixedLabels = new Set(
       plan.lineItems.filter((i) => i.section === "fixed_costs" && i.excluded).map((i) => i.label)
     );
@@ -110,6 +146,7 @@ export default function PlanPage({
     const pct = (v: number) => (net > 0 ? v / net : 0);
     return {
       ...plan.calculations,
+      netMonthlyIncome: net,
       fixedCostsSubtotal,
       miscellaneous,
       fixedCostsTotal,
@@ -121,7 +158,7 @@ export default function PlanPage({
       guiltFreeTotal,
       guiltFreePercentage: pct(guiltFreeTotal),
     };
-  }, [plan, fixedCategoryTotals]);
+  }, [plan, fixedCategoryTotals, incomeCategoryTotals, hasIncomeTransactions]);
 
   if (isLoading) {
     return (
@@ -142,6 +179,7 @@ export default function PlanPage({
   const fixedCostItems = plan.lineItems.filter((i) => i.section === "fixed_costs");
   const investmentItems = plan.lineItems.filter((i) => i.section === "investments");
   const savingsItems = plan.lineItems.filter((i) => i.section === "savings");
+  const incomeItems = plan.lineItems.filter((i) => i.section === "income");
 
   function handleFieldChange(field: string, value: number) {
     debouncedUpdate({ [field]: value });
@@ -181,7 +219,8 @@ export default function PlanPage({
 
   return (
     <div>
-      <GuidedTour tourId="plan" steps={PLAN_TOUR} />
+      {/* v2: added the income auto-compute step */}
+      <GuidedTour tourId="plan" steps={PLAN_TOUR} version={2} />
       <div className="flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-2 min-w-0">
           {plan.isLocked ? (
@@ -239,8 +278,12 @@ export default function PlanPage({
 
         <IncomeSection
           grossMonthlyIncome={plan.grossMonthlyIncome}
-          netMonthlyIncome={plan.netMonthlyIncome}
+          netMonthlyIncome={calculations.netMonthlyIncome}
           onFieldChange={handleFieldChange}
+          items={incomeItems}
+          categoryTotals={incomeCategoryTotals}
+          isAutoComputed={hasIncomeTransactions}
+          onToggleExclude={handleToggleExclude}
         />
 
         <FixedCostsSection

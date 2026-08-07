@@ -21,6 +21,11 @@ export function useImportTransactions(planId: string) {
       api.post(`/plans/${planId}/import`, { transactions }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transactions", planId] });
+      // Server-side auto-categorize on insert can tag income, which recomputes
+      // net income on the plan — the plan detail page and Plans list need to
+      // pick that up, not just the transactions list.
+      queryClient.invalidateQueries({ queryKey: ["plan"] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
     },
   });
 }
@@ -56,6 +61,12 @@ export function useAssignCategory() {
     onError: (_err, _vars, context) => {
       context?.snapshots.forEach(([key, data]) => queryClient.setQueryData(key, data));
     },
+    onSettled: () => {
+      // Assigning/clearing "income" recomputes the plan's net income server-
+      // side — refresh the plan detail page and Plans list either way.
+      queryClient.invalidateQueries({ queryKey: ["plan"] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
   });
 }
 
@@ -81,6 +92,11 @@ export function useDeleteTransaction(planId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transactions", planId, "deleted"] });
+    },
+    onSettled: () => {
+      // Deleting an income-tagged transaction recomputes this plan's net income.
+      queryClient.invalidateQueries({ queryKey: ["plan", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
     },
   });
 }
@@ -109,6 +125,10 @@ export function useBulkDeleteTransactions(planId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transactions", planId, "deleted"] });
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["plan", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
   });
 }
 
@@ -130,6 +150,8 @@ export function useRestoreTransaction(planId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transactions", planId] });
       queryClient.invalidateQueries({ queryKey: ["transactions", planId, "deleted"] });
+      queryClient.invalidateQueries({ queryKey: ["plan", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
     },
   });
 }
@@ -208,6 +230,8 @@ export function useDeleteAllTransactions(planId: string) {
     onSuccess: () => {
       queryClient.setQueryData(["transactions", planId], []);
       queryClient.setQueryData(["transactions", planId, "deleted"], []);
+      queryClient.invalidateQueries({ queryKey: ["plan", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
     },
   });
 }

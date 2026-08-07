@@ -15,9 +15,19 @@ const mockPrisma = {
 
 vi.mock("../db/client.js", () => ({ prisma: mockPrisma }));
 
+const mockRecomputeNetIncomeForPlans = vi.fn();
+vi.mock("./net-income.service.js", () => ({
+  recomputeNetIncomeForPlans: mockRecomputeNetIncomeForPlans,
+}));
+
 const { bulkDeleteTransactions } = await import("./import.service.js");
 
 const USER = "user-1";
+
+/** Build a mock findMany row in the shape bulkDeleteTransactions now selects. */
+function ownedRow(id: string, spendingCategory: string | null = null, spendingPlanId = "plan-1") {
+  return { id, spendingCategory, import: { spendingPlanId } };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -26,13 +36,13 @@ beforeEach(() => {
 describe("bulkDeleteTransactions", () => {
   it("soft-deletes every id once ownership of all of them is confirmed", async () => {
     const ids = ["tx-1", "tx-2", "tx-3"];
-    mockPrisma.transaction.findMany.mockResolvedValue(ids.map((id) => ({ id })));
+    mockPrisma.transaction.findMany.mockResolvedValue(ids.map((id) => ownedRow(id)));
 
     await bulkDeleteTransactions(ids, USER);
 
     expect(mockPrisma.transaction.findMany).toHaveBeenCalledWith({
       where: { id: { in: ids }, import: { spendingPlan: { userId: USER } } },
-      select: { id: true },
+      select: { id: true, spendingCategory: true, import: { select: { spendingPlanId: true } } },
     });
     expect(mockPrisma.transaction.updateMany).toHaveBeenCalledWith({
       where: { id: { in: ids } },
@@ -43,7 +53,7 @@ describe("bulkDeleteTransactions", () => {
   it("rejects the whole request if any id doesn't belong to this user", async () => {
     const ids = ["tx-1", "tx-2", "someone-elses-tx"];
     // Only two of the three resolved under this user's ownership filter.
-    mockPrisma.transaction.findMany.mockResolvedValue([{ id: "tx-1" }, { id: "tx-2" }]);
+    mockPrisma.transaction.findMany.mockResolvedValue([ownedRow("tx-1"), ownedRow("tx-2")]);
 
     await expect(bulkDeleteTransactions(ids, USER)).rejects.toThrow(
       "One or more transactions were not found"
@@ -53,7 +63,7 @@ describe("bulkDeleteTransactions", () => {
 
   it("rejects the whole request if an id doesn't exist at all", async () => {
     const ids = ["tx-1", "does-not-exist"];
-    mockPrisma.transaction.findMany.mockResolvedValue([{ id: "tx-1" }]);
+    mockPrisma.transaction.findMany.mockResolvedValue([ownedRow("tx-1")]);
 
     await expect(bulkDeleteTransactions(ids, USER)).rejects.toThrow(
       "One or more transactions were not found"
@@ -66,7 +76,7 @@ describe("bulkDeleteTransactions", () => {
     // (unique by id), so comparing against the raw array length would falsely
     // reject this — the check compares against the de-duplicated count instead.
     const ids = ["tx-1", "tx-1"];
-    mockPrisma.transaction.findMany.mockResolvedValue([{ id: "tx-1" }]);
+    mockPrisma.transaction.findMany.mockResolvedValue([ownedRow("tx-1")]);
 
     await bulkDeleteTransactions(ids, USER);
 
@@ -74,5 +84,30 @@ describe("bulkDeleteTransactions", () => {
       where: { id: { in: ids } },
       data: { deletedAt: expect.any(Date) },
     });
+  });
+
+  it("does not recompute net income when no deleted row was income-tagged", async () => {
+    const ids = ["tx-1", "tx-2"];
+    mockPrisma.transaction.findMany.mockResolvedValue([
+      ownedRow("tx-1", "fixed_costs", "plan-1"),
+      ownedRow("tx-2", null, "plan-1"),
+    ]);
+
+    await bulkDeleteTransactions(ids, USER);
+
+    expect(mockRecomputeNetIncomeForPlans).not.toHaveBeenCalled();
+  });
+
+  it("recomputes net income for every distinct plan that had an income row deleted", async () => {
+    const ids = ["tx-1", "tx-2", "tx-3"];
+    mockPrisma.transaction.findMany.mockResolvedValue([
+      ownedRow("tx-1", "income", "plan-1"),
+      ownedRow("tx-2", "fixed_costs", "plan-1"),
+      ownedRow("tx-3", "income", "plan-2"),
+    ]);
+
+    await bulkDeleteTransactions(ids, USER);
+
+    expect(mockRecomputeNetIncomeForPlans).toHaveBeenCalledWith(["plan-1", "plan-2"]);
   });
 });

@@ -141,10 +141,60 @@ function BulkDeleteGraphic() {
 }
 
 /**
+ * A miniature of the Income section: a plain row, an auto-calculated
+ * breakdown row, and the total — the before/after this feature adds.
+ */
+function IncomeLinkGraphic() {
+  const rows = [
+    { label: "Paycheck / Salary", amount: "$3,800" },
+    { label: "Side Income", amount: "$500" },
+  ];
+
+  return (
+    <div className="rounded-lg overflow-hidden border border-gray-200 bg-white" aria-hidden>
+      <div
+        className="px-3 py-1.5 text-[10px] font-sans font-bold uppercase tracking-wider text-white"
+        style={{ background: TEAL }}
+      >
+        Income
+      </div>
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-50">
+        <span className="text-[11px] font-sans text-gray-800">Gross monthly income</span>
+        <span className="text-[11px] font-sans tabular-nums text-gray-500">$5,200</span>
+      </div>
+      {rows.map((row) => (
+        <div key={row.label} className="flex items-center justify-between px-3 py-1.5 border-b border-gray-50">
+          <span className="text-[11px] font-sans text-gray-800 truncate">{row.label}</span>
+          <span className="text-[11px] font-sans tabular-nums text-gray-900">{row.amount}</span>
+        </div>
+      ))}
+      <div
+        className="flex items-center justify-between px-3 py-1.5 text-[10px] font-sans font-bold"
+        style={{ background: BEIGE, color: TEAL }}
+      >
+        <span>NET MONTHLY INCOME</span>
+        <span className="tabular-nums">$4,300</span>
+      </div>
+      <div className="px-3 py-1.5 text-[10px] font-sans text-gray-400 border-t border-gray-100">
+        <span style={{ color: ORANGE }}>●</span> Auto-calculated from your
+        tagged income transactions.
+      </div>
+    </div>
+  );
+}
+
+/**
  * Announcements shown once per account, newest first. Add an entry here when a
  * change gives users something new they can see and use.
  */
 export const ANNOUNCEMENTS: Announcement[] = [
+  {
+    id: "whats-new:income-linkage:v1",
+    title: "Deposits can now fill in your income",
+    body:
+      "Tag a paycheck, a Zelle you received, or any other deposit as Income on the Transactions tab — a category just for money coming in. Once tagged, Net Monthly Income calculates itself, and every percentage on your plan updates to match.",
+    graphic: <IncomeLinkGraphic />,
+  },
   {
     id: "whats-new:bulk-delete-transactions:v1",
     title: "Delete several transactions at once",

@@ -7,7 +7,7 @@ export const userCategoryRoutes = Router();
 
 userCategoryRoutes.use(requireAuth);
 
-const sectionEnum = z.enum(["fixed_costs", "investments", "savings"]);
+const sectionEnum = z.enum(["fixed_costs", "investments", "savings", "income"]);
 
 /** GET /user-categories - list the user's category library */
 userCategoryRoutes.get("/", async (req, res, next) => {

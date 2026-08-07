@@ -24,7 +24,7 @@ export const importTransactionsSchema = z.object({
 /** Schema for updating a transaction's category assignment */
 export const assignCategorySchema = z.object({
   spendingCategory: z
-    .enum(["fixed_costs", "investments", "savings", "guilt_free"])
+    .enum(["fixed_costs", "investments", "savings", "guilt_free", "income"])
     .nullable(),
   spendingSubcategory: z.string().nullable(),
 });

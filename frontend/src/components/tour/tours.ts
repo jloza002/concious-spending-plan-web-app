@@ -25,7 +25,11 @@ export const PLANS_TOUR: TourStep[] = [
 export const PLAN_TOUR: TourStep[] = [
   {
     title: "This is a monthly plan",
-    body: "Enter your net worth and income up top. Fixed costs fill in from your categorized transactions; investments and savings are your goals.",
+    body: "Enter your net worth up top. Fixed costs fill in from your categorized transactions; investments and savings are your goals.",
+  },
+  {
+    title: "Net income can fill itself in too",
+    body: "Tag a deposit — a paycheck, a Zelle you received — as Income on the Transactions tab, and Net Monthly Income switches from a manual field to an automatic total. With nothing tagged yet, it stays exactly as editable as before.",
   },
   {
     selector: '[data-tour="exclude-line"]',
@@ -53,6 +57,10 @@ export const TRANSACTIONS_TOUR: TourStep[] = [
     selector: '[data-tour="tx-filters"]',
     title: "Filter what you see",
     body: "Narrow by search, date, category, account type, or status (categorized, uncategorized, duplicates).",
+  },
+  {
+    title: "Deposits can be tagged Income",
+    body: "Open a deposit's category dropdown and you'll see an Income group alongside Fixed Costs — direction decides eligibility, so this only shows up for positive amounts. Tag paychecks, Zelle transfers, or side income there and your plan's Net Monthly Income starts calculating itself.",
   },
 ];
 

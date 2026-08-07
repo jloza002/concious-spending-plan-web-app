@@ -24,7 +24,7 @@ export const updatePlanSchema = z.object({
 
 /** Schema for creating/updating a line item */
 export const lineItemSchema = z.object({
-  section: z.enum(["fixed_costs", "investments", "savings"]),
+  section: z.enum(["fixed_costs", "investments", "savings", "income"]),
   label: z.string().min(1).max(255),
   amount: z.number().default(0),
   sortOrder: z.number().int().optional(),

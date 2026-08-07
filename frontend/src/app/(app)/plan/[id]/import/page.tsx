@@ -29,6 +29,7 @@ const SECTION_LABELS: Record<string, string> = {
   fixed_costs: "Fixed Costs",
   investments: "Investments",
   savings: "Savings Goals",
+  income: "Income",
 };
 
 // ─── Category Dropdown ────────────────────────────────────────────────────────
@@ -44,7 +45,7 @@ interface CategorySelectProps {
   transaction: Transaction;
   categories: CategoryOption[];
   onSelect: (transaction: Transaction, value: string) => void;
-  onAdd: (transaction: Transaction, label: string) => Promise<void>;
+  onAdd: (transaction: Transaction, label: string, section: "fixed_costs" | "income") => Promise<void>;
   onDelete: (itemId: string) => Promise<void>;
   onRename: (itemId: string, oldLabel: string, newLabel: string) => Promise<void>;
   locked?: boolean;
@@ -56,7 +57,9 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<MenuPos | null>(null);
   const [editMode, setEditMode] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
+  // Which section's "Add" form is open, if any — replaces a plain boolean since
+  // there are now two independent Add actions (Fixed Costs and Income).
+  const [addingSection, setAddingSection] = useState<"fixed_costs" | "income" | null>(null);
   const [newLabel, setNewLabel] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -115,11 +118,11 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     const label = newLabel.trim();
-    if (!label) return;
+    if (!label || !addingSection) return;
     setSaving(true);
-    await onAdd(transaction, label);
+    await onAdd(transaction, label, addingSection);
     setNewLabel("");
-    setIsAdding(false);
+    setAddingSection(null);
     setSaving(false);
   }
 
@@ -139,14 +142,15 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
     : transaction.spendingSubcategory ||
       (transaction.spendingCategory ? SECTION_LABELS[transaction.spendingCategory] ?? transaction.spendingCategory : "");
   const isCategorized = !!transaction.spendingCategory && !isOrphaned;
+  const isIncomeCategorized = isCategorized && transaction.spendingCategory === "income";
 
-  if (isAdding) {
+  if (addingSection) {
     return (
       <form onSubmit={handleAdd} className="flex items-center gap-1">
         <input
           value={newLabel}
           onChange={(e) => setNewLabel(e.target.value)}
-          placeholder="Category name…"
+          placeholder={addingSection === "income" ? "Income category name…" : "Category name…"}
           className="flex-1 min-w-0 text-xs border border-[var(--color-orange)] rounded px-2 py-1 font-sans focus:outline-none bg-white"
           autoFocus
         />
@@ -159,12 +163,94 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
         </button>
         <button
           type="button"
-          onClick={() => { setIsAdding(false); setNewLabel(""); }}
+          onClick={() => { setAddingSection(null); setNewLabel(""); }}
           className="text-xs text-gray-400 hover:text-gray-600 shrink-0"
         >
           ✕
         </button>
       </form>
+    );
+  }
+
+  // Income only makes sense for a deposit. A transaction already tagged income
+  // despite a non-positive amount (e.g. a sign-convention re-import flip) still
+  // needs to be visible and correctable — it's carried through separately so it
+  // renders even though it wouldn't otherwise qualify.
+  const isDeposit = transaction.amount > 0;
+  const fixedOptions = categories.filter((c) => c.section === "fixed_costs");
+  const incomeOptions = categories.filter((c) => c.section === "income");
+  const assignedIncomeOption =
+    !isDeposit && transaction.spendingCategory === "income"
+      ? incomeOptions.find((o) => o.label === transaction.spendingSubcategory)
+      : undefined;
+
+  function renderOption(opt: CategoryOption, flagged = false) {
+    return (
+      <div key={opt.value} className="flex items-center hover:bg-[#F5EEE4]">
+        {editMode && renamingId === opt.itemId ? (
+          <form
+            className="flex items-center gap-1 flex-1 px-2 py-1"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const trimmed = renameValue.trim();
+              if (trimmed && trimmed !== opt.label) {
+                setSaving(true);
+                await onRename(opt.itemId, opt.label, trimmed);
+                setSaving(false);
+              }
+              setRenamingId(null);
+            }}
+          >
+            <input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") setRenamingId(null); }}
+              className="flex-1 min-w-0 text-xs border border-[var(--color-orange)] rounded px-1.5 py-0.5 font-sans focus:outline-none bg-white"
+              autoFocus
+              disabled={saving}
+            />
+            <button type="submit" disabled={saving || !renameValue.trim()} className="text-xs text-[var(--color-orange)] hover:opacity-70 disabled:opacity-40 shrink-0 font-medium">
+              {saving ? "…" : "Save"}
+            </button>
+            <button type="button" onClick={() => setRenamingId(null)} className="text-xs text-gray-400 hover:text-gray-600 shrink-0">✕</button>
+          </form>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                if (editMode) { setRenamingId(opt.itemId); setRenameValue(opt.label); }
+                else { onSelect(transaction, opt.value); setOpen(false); }
+              }}
+              className={`flex-1 text-left text-xs px-3 py-1.5 font-sans truncate ${flagged ? "text-amber-700" : ""}`}
+              title={flagged ? "Not a deposit — retag or clear this category" : undefined}
+            >
+              {flagged && "⚠ "}{opt.label}
+            </button>
+            {editMode && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { setRenamingId(opt.itemId); setRenameValue(opt.label); }}
+                  className="shrink-0 px-1.5 py-1.5 text-gray-300 hover:text-[var(--color-orange)]"
+                  title="Rename"
+                >
+                  ✎
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleDelete(opt.itemId); }}
+                  disabled={deletingId === opt.itemId}
+                  className="shrink-0 px-1.5 py-1.5 text-[10px] text-gray-300 hover:text-red-400 disabled:opacity-40"
+                  title="Delete"
+                >
+                  ✕
+                </button>
+              </>
+            )}
+          </>
+        )}
+      </div>
     );
   }
 
@@ -175,7 +261,9 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
         type="button"
         onClick={handleToggle}
         className={`w-full text-xs text-left rounded px-2 py-1.5 font-sans focus:outline-none flex items-center justify-between gap-1 transition-colors ${
-          isCategorized
+          isIncomeCategorized
+            ? "bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium"
+            : isCategorized
             ? "bg-[#15302F]/10 text-[#15302F] border border-[#15302F]/20 font-medium"
             : "border border-gray-200 text-gray-400 bg-white hover:border-gray-300"
         }`}
@@ -200,72 +288,25 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
               Uncategorized
             </button>
 
-            {categories.length > 0 && categories.map((opt) => (
-              <div key={opt.value} className="flex items-center hover:bg-[#F5EEE4]">
-                {editMode && renamingId === opt.itemId ? (
-                  <form
-                    className="flex items-center gap-1 flex-1 px-2 py-1"
-                    onSubmit={async (e) => {
-                      e.preventDefault();
-                      const trimmed = renameValue.trim();
-                      if (trimmed && trimmed !== opt.label) {
-                        setSaving(true);
-                        await onRename(opt.itemId, opt.label, trimmed);
-                        setSaving(false);
-                      }
-                      setRenamingId(null);
-                    }}
-                  >
-                    <input
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Escape") setRenamingId(null); }}
-                      className="flex-1 min-w-0 text-xs border border-[var(--color-orange)] rounded px-1.5 py-0.5 font-sans focus:outline-none bg-white"
-                      autoFocus
-                      disabled={saving}
-                    />
-                    <button type="submit" disabled={saving || !renameValue.trim()} className="text-xs text-[var(--color-orange)] hover:opacity-70 disabled:opacity-40 shrink-0 font-medium">
-                      {saving ? "…" : "Save"}
-                    </button>
-                    <button type="button" onClick={() => setRenamingId(null)} className="text-xs text-gray-400 hover:text-gray-600 shrink-0">✕</button>
-                  </form>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (editMode) { setRenamingId(opt.itemId); setRenameValue(opt.label); }
-                        else { onSelect(transaction, opt.value); setOpen(false); }
-                      }}
-                      className="flex-1 text-left text-xs px-3 py-1.5 font-sans truncate"
-                    >
-                      {opt.label}
-                    </button>
-                    {editMode && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => { setRenamingId(opt.itemId); setRenameValue(opt.label); }}
-                          className="shrink-0 px-1.5 py-1.5 text-gray-300 hover:text-[var(--color-orange)]"
-                          title="Rename"
-                        >
-                          ✎
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleDelete(opt.itemId); }}
-                          disabled={deletingId === opt.itemId}
-                          className="shrink-0 px-1.5 py-1.5 text-[10px] text-gray-300 hover:text-red-400 disabled:opacity-40"
-                          title="Delete"
-                        >
-                          ✕
-                        </button>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            ))}
+            <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-gray-400 bg-gray-50 border-y border-gray-100">
+              Fixed Costs
+            </div>
+            {fixedOptions.map((opt) => renderOption(opt))}
+
+            <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-gray-400 bg-gray-50 border-y border-gray-100">
+              Income
+            </div>
+            {isDeposit ? (
+              incomeOptions.length > 0 ? (
+                incomeOptions.map((opt) => renderOption(opt))
+              ) : (
+                <div className="px-3 py-1.5 text-xs text-gray-400 italic font-sans">No income categories yet</div>
+              )
+            ) : assignedIncomeOption ? (
+              renderOption(assignedIncomeOption, true)
+            ) : (
+              <div className="px-3 py-1.5 text-xs text-gray-400 italic font-sans">Income applies to deposits only</div>
+            )}
           </div>
 
           {/* Fixed footer — always visible regardless of scroll */}
@@ -279,11 +320,20 @@ function CategorySelect({ transaction, categories, onSelect, onAdd, onDelete, on
               <div className="flex">
                 <button
                   type="button"
-                  onClick={() => { setOpen(false); setIsAdding(true); }}
+                  onClick={() => { setOpen(false); setAddingSection("fixed_costs"); }}
                   className="flex-1 text-left text-xs px-3 py-2 hover:bg-[#F5EEE4] font-sans text-[var(--color-orange)]"
                 >
-                  ＋ Add
+                  ＋ Fixed cost
                 </button>
+                {isDeposit && (
+                  <button
+                    type="button"
+                    onClick={() => { setOpen(false); setAddingSection("income"); }}
+                    className="flex-1 text-left text-xs px-3 py-2 hover:bg-[#F5EEE4] font-sans text-emerald-700 border-l border-gray-100"
+                  >
+                    ＋ Income
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => { setEditMode(false); setRenamingId(null); }}
@@ -1305,9 +1355,9 @@ export default function TransactionsPage({
 
   const categoryOptions: CategoryOption[] = plan
     ? plan.lineItems
-        .filter((i) => i.section === "fixed_costs")
+        .filter((i) => i.section === "fixed_costs" || i.section === "income")
         .map((i) => ({
-          value: `fixed_costs:${i.label}`,
+          value: `${i.section}:${i.label}`,
           label: i.label,
           itemId: i.id,
           section: i.section,
@@ -1326,9 +1376,9 @@ export default function TransactionsPage({
     }
   }
 
-  async function handleAddCategory(transaction: Transaction, label: string) {
-    await addLineItem.mutateAsync({ section: "fixed_costs", label, amount: 0 });
-    assignCategory.mutate({ transactionId: transaction.id, spendingCategory: "fixed_costs", spendingSubcategory: label });
+  async function handleAddCategory(transaction: Transaction, label: string, section: "fixed_costs" | "income") {
+    await addLineItem.mutateAsync({ section, label, amount: 0 });
+    assignCategory.mutate({ transactionId: transaction.id, spendingCategory: section, spendingSubcategory: label });
   }
 
   async function handleDeleteCategory(itemId: string) {
@@ -1387,7 +1437,8 @@ export default function TransactionsPage({
 
   return (
     <div className="space-y-6">
-      <GuidedTour tourId="transactions" steps={TRANSACTIONS_TOUR} />
+      {/* v2: added the income category group step */}
+      <GuidedTour tourId="transactions" steps={TRANSACTIONS_TOUR} version={2} />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

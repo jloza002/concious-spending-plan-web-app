@@ -115,6 +115,42 @@ export function NetWorthFigure() {
   );
 }
 
+/* Income linkage: a deposit's category dropdown open on the Income group */
+export function IncomeLinkFigure() {
+  return (
+    <Frame viewBox="0 0 460 240" label="Tagging a deposit as Income">
+      <rect x="0" y="0" width="460" height="240" fill="#fff" />
+      {/* Transaction row */}
+      <text x="16" y="30" fontSize="12" fill={GRAY}>06/03</text>
+      <text x="80" y="30" fontSize="13" fontWeight="600" fill={DARK}>ACME CORP PAYROLL</text>
+      <text x="428" y="30" textAnchor="end" fontSize="13" fontWeight="700" fill={GREEN}>+$1,900.00</text>
+      <rect x="16" y="42" width="428" height="1" fill={BORDER} />
+
+      {/* Category dropdown, open */}
+      <rect x="270" y="54" width="174" height="176" rx="8" fill="#fff" stroke={BORDER} strokeWidth="1.2" />
+
+      <rect x="270" y="54" width="174" height="20" fill={CREAM} />
+      <text x="280" y="68" fontSize="10" fontWeight="700" fill={GRAY}>FIXED COSTS</text>
+      <text x="280" y="88" fontSize="11" fill={DARK}>Groceries</text>
+      <text x="280" y="106" fontSize="11" fill={DARK}>Rent</text>
+
+      <rect x="270" y="116" width="174" height="20" fill={CREAM} />
+      <text x="280" y="130" fontSize="10" fontWeight="700" fill={GRAY}>INCOME</text>
+      <rect x="270" y="136" width="174" height="20" fill="#ECFDF5" />
+      <text x="280" y="150" fontSize="11" fontWeight="700" fill="#047857">✓ Paycheck / Salary</text>
+      <text x="280" y="168" fontSize="11" fill={DARK}>Side Income</text>
+
+      <line x1="270" y1="180" x2="444" y2="180" stroke={BORDER} />
+      <text x="280" y="196" fontSize="10" fill={ORANGE}>✎ Edit categories</text>
+
+      {/* Net income callout */}
+      <rect x="16" y="200" width="230" height="30" rx="6" fill={BEIGE} />
+      <text x="28" y="219" fontSize="11" fontWeight="700" fill={TEAL}>NET MONTHLY INCOME</text>
+      <text x="234" y="219" textAnchor="end" fontSize="12" fontWeight="700" fill={TEAL}>$4,300</text>
+    </Frame>
+  );
+}
+
 /* 4 — Fixed costs section */
 export function FixedCostsFigure() {
   const rows: [string, string][] = [

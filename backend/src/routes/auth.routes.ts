@@ -8,7 +8,7 @@ import { AppError } from "../middleware/error-handler.js";
 import { requireAuth } from "../middleware/auth.js";
 import { auditLog } from "../services/audit.service.js";
 import { resetPasswordWithSecurityAnswer, GENERIC_RESET_ERROR } from "../services/auth-recovery.service.js";
-import { DEFAULT_FIXED_COSTS, DEFAULT_INVESTMENTS, DEFAULT_SAVINGS } from "@csp/shared";
+import { DEFAULT_FIXED_COSTS, DEFAULT_INVESTMENTS, DEFAULT_SAVINGS, DEFAULT_INCOME } from "@csp/shared";
 
 export const authRoutes = Router();
 
@@ -127,6 +127,7 @@ authRoutes.post("/register", async (req, res, next) => {
       ...DEFAULT_FIXED_COSTS.map((label, i) => ({ userId: user.id, section: "fixed_costs", label, sortOrder: i + 1 })),
       ...DEFAULT_INVESTMENTS.map((label, i) => ({ userId: user.id, section: "investments", label, sortOrder: i + 1 })),
       ...DEFAULT_SAVINGS.map((label, i) => ({ userId: user.id, section: "savings", label, sortOrder: i + 1 })),
+      ...DEFAULT_INCOME.map((label, i) => ({ userId: user.id, section: "income", label, sortOrder: i + 1 })),
     ];
     await prisma.userCategory.createMany({ data: seedRows, skipDuplicates: true });
 

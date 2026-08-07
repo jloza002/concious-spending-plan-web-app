@@ -332,6 +332,102 @@ and brute-forcing the answer. The flow below replaces it.
 
 ---
 
+## Income linkage (2026-08-08)
+
+Deposits (positive-amount transactions) can be tagged with an Income category,
+the same way expenses are tagged Fixed Costs. Net Monthly Income auto-computes
+from tagged deposits once any exist for the plan; with none tagged it stays the
+existing manual field. Direction (the transaction's sign), not payment method,
+decides eligibility — a Zelle *received* is a deposit; a Zelle *sent* stays an
+expense category exactly as before.
+
+### IL1 — Tagging a deposit switches Net Income to automatic
+- **Given** a plan with its Net Monthly Income entered manually, and a
+  positive-amount transaction (e.g. a paycheck deposit)
+- **When** opening its category dropdown, choosing the **Income** group, and
+  selecting (or adding) a category like "Paycheck / Salary"
+- **Then** the Income section on the plan page switches from an editable field
+  to a read-only breakdown row for that category, the Net Income total updates
+  to match, every percentage (Fixed Costs %, Savings %, Guilt-Free) recomputes
+  against the new figure, and a caption explains it's now auto-calculated
+
+### IL2 — Zero income transactions leaves the manual field untouched
+- **Given** a brand-new plan, or one with no transactions ever tagged Income
+- **Then** Net Monthly Income is still a plain editable field, saves normally,
+  and behaves exactly as it did before this feature — this is the top
+  regression risk for this change and must never break
+
+### IL3 — Untagging reverts the automatic total
+- **Given** a plan with exactly one transaction tagged Income
+- **When** changing that transaction's category to Uncategorized (or to a
+  different section)
+- **Then** Net Income falls back to the last manually-entered value, and the
+  field becomes editable again
+
+### IL4 — Every mutation path recomputes, not just categorizing
+- **Given** a plan with two transactions tagged Income
+- **When**, in turn: deleting one, restoring it from Deleted Transactions,
+  bulk-deleting both, importing a new CSV whose payroll description already
+  matches saved category memory (auto-tagged on insert, no manual step)
+- **Then** Net Income updates correctly after each step
+- **And** the Plans list card and the dashboard's Income trend chart (which
+  read a separate aggregate, not the plan detail page) reflect the same
+  number after each step — not just the currently-open plan page
+
+### IL5 — The exclude toggle applies to income categories too
+- **Given** two income categories with tagged deposits
+- **When** clicking the eye icon to exclude one
+- **Then** it goes transparent/struck-through, drops out of the Net Income
+  total, and Guilt-Free Spending updates accordingly; toggling it back
+  restores both
+
+### IL6 — Renaming or deleting an income category cascades correctly
+- **Given** an income category used across two unlocked plans
+- **When** renaming it from the category dropdown's edit mode
+- **Then** both plans' transactions and line items pick up the new label with
+  the same total
+- **When** deleting it instead
+- **Then** its transactions become uncategorized on every unlocked plan, its
+  category-memory keywords are removed (so auto-categorize won't re-tag future
+  imports to it), and Net Income recomputes on every affected plan — not just
+  the one the edit was made from
+
+### IL7 — Locked plans still allow tagging (a deliberate exception)
+- **Given** a locked plan with an untagged deposit
+- **When** categorizing it as Income
+- **Then** the assignment succeeds and Net Income recomputes — locking only
+  blocks category-*library* edits (add/rename/delete a category), matching
+  the same rule Fixed Costs already follows
+
+### IL8 — Sign rules in the category dropdown
+- **Given** a negative-amount transaction (a normal expense)
+- **Then** the dropdown shows the Fixed Costs group only; the Income group
+  shows "Income applies to deposits only" instead of a category list
+- **Given** a positive-amount transaction (a refund landing back in a fixed
+  cost, or a real deposit)
+- **Then** **both** groups are available — Fixed Costs stays selectable even
+  for a positive amount, since a refund legitimately belongs there
+- **Given** a transaction already tagged Income whose amount is no longer
+  positive (e.g. after re-importing under a different sign convention)
+- **Then** its income category still renders (flagged with a warning icon) so
+  it can be seen and corrected, rather than silently displaying "Uncategorized"
+  while the database still says Income
+
+### IL9 — Existing accounts are backfilled
+- **Given** an account created before this feature shipped
+- **Then** its category library already has the default Income categories
+  (Paycheck / Salary, Side Income, Gifts / Reimbursements, Transfers, Interest
+  / Dividends) without any manual action, and every one of its *unlocked*
+  plans already has matching line items — locked plans are untouched
+
+### IL10 — Excel export matches the app
+- **Given** a plan with tagged income transactions
+- **When** exporting to Excel
+- **Then** the Net Income figure matches what the app shows, and the income
+  category breakdown appears in the sheet the same way Fixed Costs does
+
+---
+
 ## Button sweeps (standing practice — rule 7)
 
 A sweep means clicking every interactive control on a page or surface and

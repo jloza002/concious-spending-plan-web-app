@@ -37,7 +37,7 @@ export interface SpendingPlan {
 export interface UserCategory {
   id: string;
   userId: string;
-  section: "fixed_costs" | "investments" | "savings";
+  section: "fixed_costs" | "investments" | "savings" | "income";
   label: string;
   sortOrder: number;
   createdAt: string;
@@ -61,7 +61,7 @@ export interface BudgetTarget {
 export interface PlanLineItem {
   id: string;
   spendingPlanId: string;
-  section: "fixed_costs" | "investments" | "savings";
+  section: "fixed_costs" | "investments" | "savings" | "income";
   label: string;
   amount: number;
   isDefault: boolean;

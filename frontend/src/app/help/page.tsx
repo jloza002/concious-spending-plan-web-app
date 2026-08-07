@@ -4,6 +4,7 @@ import {
   WorkflowFigure,
   CreatePlanFigure,
   NetWorthFigure,
+  IncomeLinkFigure,
   FixedCostsFigure,
   BudgetFigure,
   TransactionsFigure,
@@ -24,6 +25,7 @@ const SECTIONS = [
   { id: "getting-started", title: "Getting started" },
   { id: "creating-a-plan", title: "Creating a plan" },
   { id: "net-worth-income", title: "Net worth & income" },
+  { id: "income-linkage", title: "Linking deposits to income" },
   { id: "fixed-costs", title: "Fixed costs & categories" },
   { id: "budget", title: "Setting a budget" },
   { id: "transactions", title: "Transactions & importing" },
@@ -135,6 +137,33 @@ export default function HelpPage() {
                 At the top of a plan, enter your <strong>assets, investments, savings, and debt</strong> to
                 track net worth, and your <strong>gross and net monthly income</strong>. Net income is the
                 number every percentage on the plan is measured against (fixed costs %, savings %, guilt-free %).
+              </p>
+            </Section>
+
+            <Section id="income-linkage" title="Linking deposits to income" figure={<IncomeLinkFigure />}>
+              <p>
+                Net Monthly Income doesn&apos;t have to be typed in by hand. On the <strong>Transactions</strong>{" "}
+                tab, any <strong>deposit</strong> (a positive-amount transaction — a paycheck, a Zelle you
+                received, a reimbursement) can be tagged with an <strong>Income</strong> category, the same way
+                an expense gets tagged Fixed Costs. As soon as one deposit is tagged, Net Monthly Income switches
+                from a manual field to an <strong>automatic total</strong> of everything you&apos;ve tagged that
+                month, and every percentage on the plan (Fixed Costs %, Savings %, Guilt-Free) recalculates
+                against it.
+              </p>
+              <p>
+                <strong>Direction decides eligibility, not payment method.</strong> A Zelle you <em>received</em>{" "}
+                is a deposit — tag it Income. A Zelle you <em>sent</em> is an expense — it stays in Fixed Costs
+                (or whichever category fits) exactly as before. The Income group in the category dropdown only
+                appears for positive-amount transactions, so there&apos;s no confusing the two.
+              </p>
+              <p>
+                Income categories are managed the same way Fixed Costs categories are — add, rename, or delete
+                your own from the dropdown&apos;s <em>Edit categories</em> mode — but the <strong>Income
+                section itself</strong> is a fixed part of the app and can&apos;t be renamed or removed.
+              </p>
+              <p>
+                If nothing is tagged Income yet, Net Monthly Income stays exactly as editable as it always
+                was — this only changes anything once you start tagging deposits.
               </p>
             </Section>
 
@@ -316,6 +345,10 @@ export default function HelpPage() {
                 <em> Stay signed in</em> to continue. If it lapses, just sign in again.</p>
               <p><strong>Is my data private?</strong> Your categories, plans, and transactions are tied to your
                 account and are not visible to other users.</p>
+              <p><strong>I tagged a deposit Income but Net Monthly Income didn&apos;t change.</strong> Give it a
+                moment to refresh, or check you tagged a <em>positive</em>-amount row — negative amounts (money
+                going out) can&apos;t be tagged Income. Untagging the last income transaction reverts to the
+                manual field.</p>
             </Section>
 
             <div className="pt-6 border-t border-gray-200">

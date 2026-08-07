@@ -82,10 +82,16 @@ export async function createPlan(
       orderBy: [{ section: "asc" }, { sortOrder: "asc" }],
     });
 
-    // Fixed-cost categories come from the user's library so the transaction
-    // category dropdown always has the full set to choose from.
+    // Fixed-cost and income categories come from the user's library so the
+    // transaction category dropdown always has the full set to choose from.
+    // (Income mirrors Fixed Costs here, not the goals below — these are
+    // dropdown sources with amounts derived from transactions, not manually
+    // entered targets to carry month to month.)
     const fixedCostItems = library
       .filter((c) => c.section === "fixed_costs")
+      .map((c) => ({ section: c.section, label: c.label, amount: 0, isDefault: true, sortOrder: c.sortOrder }));
+    const incomeItems = library
+      .filter((c) => c.section === "income")
       .map((c) => ({ section: c.section, label: c.label, amount: 0, isDefault: true, sortOrder: c.sortOrder }));
 
     // Investments + savings goals are carried over from the PREVIOUS plan only
@@ -110,7 +116,7 @@ export async function createPlan(
         .map((c) => ({ section: c.section, label: c.label, amount: 0, isDefault: true, sortOrder: c.sortOrder }));
     }
 
-    lineItemsToCreate = [...fixedCostItems, ...goalItems];
+    lineItemsToCreate = [...fixedCostItems, ...incomeItems, ...goalItems];
   }
 
   const plan = await prisma.spendingPlan.create({
@@ -163,31 +169,57 @@ export async function listPlans(userId: string) {
 
   const planIds = plans.map((p) => p.id);
 
-  // Excluded fixed-cost category labels per plan — their transactions must not
-  // count toward the fixed-cost subtotal (per-line "what-if" exclusion).
+  // Excluded fixed-cost / income category labels per plan — their transactions
+  // must not count toward the section total (per-line "what-if" exclusion).
   const excludedFixedByPlan: Record<string, Set<string>> = {};
+  const excludedIncomeByPlan: Record<string, Set<string>> = {};
   for (const plan of plans) {
     excludedFixedByPlan[plan.id] = new Set(
       plan.lineItems.filter((i) => i.section === "fixed_costs" && i.excluded).map((i) => i.label)
     );
+    excludedIncomeByPlan[plan.id] = new Set(
+      plan.lineItems.filter((i) => i.section === "income" && i.excluded).map((i) => i.label)
+    );
   }
 
-  // Aggregate transaction-based fixed costs per plan
+  // Aggregate transaction-based fixed costs + income per plan in one query.
+  // deletedAt: null matters — without it a soft-deleted transaction would keep
+  // counting here even though the plan/transactions page no longer shows it.
   const txns = await prisma.transaction.findMany({
     where: {
       import: { spendingPlanId: { in: planIds } },
-      spendingCategory: "fixed_costs",
+      spendingCategory: { in: ["fixed_costs", "income"] },
       isDuplicate: false,
-      NOT: { type: "Payment" },
+      deletedAt: null,
     },
-    select: { amount: true, spendingSubcategory: true, import: { select: { spendingPlanId: true } } },
+    select: {
+      amount: true,
+      type: true,
+      spendingCategory: true,
+      spendingSubcategory: true,
+      import: { select: { spendingPlanId: true } },
+    },
   });
 
   const fcSubtotalByPlan: Record<string, number> = {};
+  const incomeCountByPlan: Record<string, number> = {};
+  const incomeTotalByPlan: Record<string, number> = {};
   for (const t of txns) {
     const pid = t.import.spendingPlanId;
-    if (t.spendingSubcategory && excludedFixedByPlan[pid]?.has(t.spendingSubcategory)) continue;
-    fcSubtotalByPlan[pid] = (fcSubtotalByPlan[pid] ?? 0) + -Number(t.amount);
+    if (t.spendingCategory === "fixed_costs") {
+      // Payment-type rows are excluded from fixed costs (e.g. credit card
+      // payments), but must NOT be excluded from income — banks frequently
+      // describe real payroll deposits with a "Payment" type too.
+      if (t.type === "Payment") continue;
+      if (t.spendingSubcategory && excludedFixedByPlan[pid]?.has(t.spendingSubcategory)) continue;
+      fcSubtotalByPlan[pid] = (fcSubtotalByPlan[pid] ?? 0) + -Number(t.amount);
+    } else if (t.spendingCategory === "income") {
+      incomeCountByPlan[pid] = (incomeCountByPlan[pid] ?? 0) + 1;
+      const amount = Number(t.amount);
+      if (amount <= 0) continue;
+      if (t.spendingSubcategory && excludedIncomeByPlan[pid]?.has(t.spendingSubcategory)) continue;
+      incomeTotalByPlan[pid] = (incomeTotalByPlan[pid] ?? 0) + amount;
+    }
   }
 
   return plans.map((plan) => {
@@ -198,8 +230,14 @@ export async function listPlans(userId: string) {
       .filter((i) => i.section === "savings" && !i.excluded)
       .reduce((s, i) => s + Number(i.amount), 0);
 
+    // Prefer transaction-derived income when the plan has any income
+    // transactions tagged; otherwise fall back to the stored (manual) value.
+    const netMonthlyIncome = incomeCountByPlan[plan.id]
+      ? incomeTotalByPlan[plan.id] ?? 0
+      : Number(plan.netMonthlyIncome);
+
     const totals = computePlanTotals({
-      netMonthlyIncome: Number(plan.netMonthlyIncome),
+      netMonthlyIncome,
       assets: Number(plan.assets),
       investmentsNw: Number(plan.investmentsNw),
       savingsNw: Number(plan.savingsNw),
@@ -424,7 +462,7 @@ function formatPlanResponse(plan: PlanWithLineItems): SpendingPlan {
     lineItems: plan.lineItems.map((item) => ({
       id: item.id,
       spendingPlanId: item.spendingPlanId,
-      section: item.section as "fixed_costs" | "investments" | "savings",
+      section: item.section as "fixed_costs" | "investments" | "savings" | "income",
       label: item.label,
       amount: Number(item.amount),
       isDefault: item.isDefault,

@@ -3,7 +3,9 @@ import {
   DEFAULT_FIXED_COSTS,
   DEFAULT_INVESTMENTS,
   DEFAULT_SAVINGS,
+  DEFAULT_INCOME,
 } from "@csp/shared";
+import { recomputeNetIncomeForPlans } from "./net-income.service.js";
 
 /**
  * Make sure a user has a non-empty category library. If they don't (legacy
@@ -21,6 +23,7 @@ export async function ensureUserCategoryLibrary(userId: string): Promise<void> {
     ...DEFAULT_FIXED_COSTS.map((label, i) => ({ userId, section: "fixed_costs", label, sortOrder: i + 1 })),
     ...DEFAULT_INVESTMENTS.map((label, i) => ({ userId, section: "investments", label, sortOrder: i + 1 })),
     ...DEFAULT_SAVINGS.map((label, i) => ({ userId, section: "savings", label, sortOrder: i + 1 })),
+    ...DEFAULT_INCOME.map((label, i) => ({ userId, section: "income", label, sortOrder: i + 1 })),
   ];
   await prisma.userCategory.createMany({ data: rows, skipDuplicates: true });
 }
@@ -210,6 +213,12 @@ export async function deleteUserCategory(userId: string, categoryId: string) {
       data: { deletedAt: new Date() },
     }),
   ]);
+
+  // Deleting an income category nulls its transactions' category above, which
+  // can silently change net income on every unlocked plan — recompute them.
+  if (cat.section === "income" && unlockedIds.length > 0) {
+    await recomputeNetIncomeForPlans(unlockedIds);
+  }
 
   return { id: categoryId };
 }

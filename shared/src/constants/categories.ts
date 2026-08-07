@@ -8,13 +8,18 @@ export const PLAN_SECTIONS = {
   INVESTMENTS: "investments",
   SAVINGS: "savings",
   GUILT_FREE: "guilt_free",
+  INCOME: "income",
 } as const;
 
 export type PlanSection = (typeof PLAN_SECTIONS)[keyof typeof PLAN_SECTIONS];
 
-/** Recommended percentage ranges per section */
+/**
+ * Recommended percentage ranges per section. Income has no target range — it's
+ * the baseline every other percentage is measured against, not a % of itself —
+ * so it's deliberately excluded from this map's keys (not just left undefined).
+ */
 export const SECTION_RANGES: Record<
-  PlanSection,
+  Exclude<PlanSection, typeof PLAN_SECTIONS.INCOME>,
   { min: number; max: number; label: string }
 > = {
   [PLAN_SECTIONS.FIXED_COSTS]: {
@@ -66,6 +71,15 @@ export const DEFAULT_SAVINGS = [
   "Vacations",
   "Gifts",
   "Long Term Emergency Fund",
+];
+
+/** Default Income subcategories — for tagging deposit (positive-amount) transactions */
+export const DEFAULT_INCOME = [
+  "Paycheck / Salary",
+  "Side Income",
+  "Gifts / Reimbursements",
+  "Transfers (Zelle / Venmo / Cash App)",
+  "Interest / Dividends",
 ];
 
 /** Net Worth field labels */

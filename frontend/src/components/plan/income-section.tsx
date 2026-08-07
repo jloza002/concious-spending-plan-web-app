@@ -1,19 +1,39 @@
 "use client";
 
 import { SectionHeader } from "./section-header";
+import { LineItemRow } from "./line-item-row";
+import { TotalRow } from "./total-row";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import type { PlanLineItem } from "@csp/shared";
 
 interface IncomeSectionProps {
   grossMonthlyIncome: number;
   netMonthlyIncome: number;
   onFieldChange: (field: string, value: number) => void;
+  /** This plan's income-section line items (the category list). */
+  items: PlanLineItem[];
+  /** Positive dollar total per income category label, from tagged deposits. */
+  categoryTotals: Record<string, number>;
+  /** True once at least one deposit is tagged Income — switches Net Income to auto-computed. */
+  isAutoComputed: boolean;
+  onToggleExclude: (id: string, excluded: boolean) => void;
 }
 
 export function IncomeSection({
   grossMonthlyIncome,
   netMonthlyIncome,
   onFieldChange,
+  items,
+  categoryTotals,
+  isAutoComputed,
+  onToggleExclude,
 }: IncomeSectionProps) {
+  // Only show income categories that actually have a tagged deposit — the full
+  // list still lives on the line items (used by the transaction dropdown).
+  const projected = items
+    .filter((item) => categoryTotals[item.label] !== undefined)
+    .map((item) => ({ ...item, amount: categoryTotals[item.label] ?? 0 }));
+
   return (
     <div className="rounded-lg overflow-hidden shadow-sm">
       <SectionHeader title="INCOME" />
@@ -28,18 +48,46 @@ export function IncomeSection({
           />
         </div>
       </div>
-      <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
-        <span className="text-sm font-sans font-bold text-[var(--color-orange)]">
-          Net monthly income (post-tax, after deductions)
-        </span>
-        <div className="w-28 sm:w-36 shrink-0">
-          <CurrencyInput
-            value={netMonthlyIncome}
-            onChange={(val) => onFieldChange("netMonthlyIncome", val)}
-            className="font-bold text-[var(--color-orange)]"
-          />
-        </div>
-      </div>
+
+      {isAutoComputed ? (
+        <>
+          {projected.map((item, i) => (
+            <LineItemRow
+              key={item.id}
+              item={item}
+              onAmountChange={() => {}}
+              onToggleExclude={onToggleExclude}
+              excludeTourAnchor={i === 0}
+              readOnly
+            />
+          ))}
+          <TotalRow label="NET MONTHLY INCOME" amount={netMonthlyIncome} />
+          <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-sans text-gray-500 italic">
+            Auto-calculated from your tagged income transactions. Untag a
+            deposit on the Transactions tab to go back to entering this by
+            hand.
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
+            <span className="text-sm font-sans font-bold text-[var(--color-orange)]">
+              Net monthly income (post-tax, after deductions)
+            </span>
+            <div className="w-28 sm:w-36 shrink-0">
+              <CurrencyInput
+                value={netMonthlyIncome}
+                onChange={(val) => onFieldChange("netMonthlyIncome", val)}
+                className="font-bold text-[var(--color-orange)]"
+              />
+            </div>
+          </div>
+          <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs font-sans text-gray-500 italic">
+            Tag a deposit on the Transactions tab as Income to calculate this
+            automatically.
+          </div>
+        </>
+      )}
     </div>
   );
 }

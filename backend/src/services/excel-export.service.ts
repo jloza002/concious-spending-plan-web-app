@@ -31,15 +31,17 @@ export async function generateExcel(planId: string, userId: string): Promise<Exc
 
   if (!plan) throw new AppError("Spending plan not found", 404);
 
-  // Fixed costs come from transactions, not line items
+  // Fixed costs + income come from transactions, not line items. deletedAt:
+  // null matters — without it a soft-deleted transaction would still count
+  // here even though the app no longer shows it.
   const txns = await prisma.transaction.findMany({
     where: {
       import: { spendingPlanId: planId },
-      spendingCategory: "fixed_costs",
+      spendingCategory: { in: ["fixed_costs", "income"] },
       isDuplicate: false,
-      NOT: { type: "Payment" },
+      deletedAt: null,
     },
-    select: { spendingSubcategory: true, amount: true },
+    select: { spendingCategory: true, spendingSubcategory: true, amount: true, type: true },
   });
 
   type LineItem = (typeof plan.lineItems)[number];
@@ -48,14 +50,34 @@ export async function generateExcel(planId: string, userId: string): Promise<Exc
   const excludedFixedLabels = new Set(
     plan.lineItems.filter((i: LineItem) => i.section === "fixed_costs" && i.excluded).map((i: LineItem) => i.label)
   );
+  const excludedIncomeLabels = new Set(
+    plan.lineItems.filter((i: LineItem) => i.section === "income" && i.excluded).map((i: LineItem) => i.label)
+  );
 
   const fcTotals: Record<string, number> = {};
+  const incomeTotals: Record<string, number> = {};
+  let incomeCount = 0;
   for (const t of txns) {
-    if (!t.spendingSubcategory || excludedFixedLabels.has(t.spendingSubcategory)) continue;
-    fcTotals[t.spendingSubcategory] =
-      (fcTotals[t.spendingSubcategory] ?? 0) + -Number(t.amount);
+    if (t.spendingCategory === "fixed_costs") {
+      // Payment-type rows (e.g. credit card payments) don't count as fixed
+      // costs, but the same exclusion must NOT apply to income — banks often
+      // describe real payroll deposits with a "Payment" type too.
+      if (t.type === "Payment") continue;
+      if (!t.spendingSubcategory || excludedFixedLabels.has(t.spendingSubcategory)) continue;
+      fcTotals[t.spendingSubcategory] = (fcTotals[t.spendingSubcategory] ?? 0) + -Number(t.amount);
+    } else if (t.spendingCategory === "income") {
+      incomeCount++;
+      const amount = Number(t.amount);
+      if (amount <= 0) continue;
+      if (t.spendingSubcategory && excludedIncomeLabels.has(t.spendingSubcategory)) continue;
+      if (t.spendingSubcategory) {
+        incomeTotals[t.spendingSubcategory] = (incomeTotals[t.spendingSubcategory] ?? 0) + amount;
+      }
+    }
   }
   const fcEntries = Object.entries(fcTotals).sort(([a], [b]) => a.localeCompare(b));
+  const incomeEntries = Object.entries(incomeTotals).sort(([a], [b]) => a.localeCompare(b));
+  const computedIncome = incomeCount > 0 ? Object.values(incomeTotals).reduce((s, v) => s + v, 0) : null;
 
   const investmentItems = plan.lineItems.filter((i: LineItem) => i.section === "investments" && !i.excluded);
   const savingsItems = plan.lineItems.filter((i: LineItem) => i.section === "savings" && !i.excluded);
@@ -103,8 +125,17 @@ export async function generateExcel(planId: string, userId: string): Promise<Exc
   row = addSectionHeader(sheet, row, "INCOME");
   row = addDataRow(sheet, row, "Gross monthly income (all income before taxes added up)", Number(plan.grossMonthlyIncome));
 
+  // When deposits are tagged, show the breakdown the app itself displays.
+  for (const [label, amount] of incomeEntries) {
+    row = addDataRow(sheet, row, label, amount);
+  }
+
   const netIncomeRow = row;
-  row = addDataRow(sheet, row, "Net monthly income (how much you take home after taxes)", Number(plan.netMonthlyIncome));
+  row = addDataRow(
+    sheet, row,
+    "Net monthly income (how much you take home after taxes)",
+    computedIncome ?? Number(plan.netMonthlyIncome)
+  );
   // Orange highlight on net income row
   sheet.getCell(`A${netIncomeRow}`).font = {
     name: "DM Sans", size: 11, bold: true, color: { argb: `FF${EXCEL_COLORS.ORANGE}` },

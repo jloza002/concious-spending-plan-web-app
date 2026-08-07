@@ -6,6 +6,7 @@ import { prisma } from "../db/client.js";
 import { AppError } from "../middleware/error-handler.js";
 import * as planService from "../services/plan.service.js";
 import * as userCategoryService from "../services/user-category.service.js";
+import { recomputeNetIncome } from "../services/net-income.service.js";
 
 /** Verify ownership and reject when the plan is locked. */
 async function loadUnlockedPlanOrThrow(planId: string, userId: string) {
@@ -97,6 +98,12 @@ lineItemRoutes.put("/:id/items/:itemId", async (req, res, next) => {
       data,
     });
 
+    // The exclude toggle (or any other edit) on an income line can change
+    // which transactions count toward net income.
+    if (item.section === "income") {
+      await recomputeNetIncome(planId);
+    }
+
     const updatedPlan = await planService.getPlan(planId, userId);
     res.json(updatedPlan);
   } catch (err) {
@@ -137,6 +144,9 @@ lineItemRoutes.delete("/:id/items/:itemId", async (req, res, next) => {
         data: { spendingCategory: null, spendingSubcategory: null },
       });
       await prisma.planLineItem.delete({ where: { id: itemId } });
+      if (item.section === "income") {
+        await recomputeNetIncome(item.spendingPlanId);
+      }
     }
 
     const updatedPlan = await planService.getPlan(planId, userId);

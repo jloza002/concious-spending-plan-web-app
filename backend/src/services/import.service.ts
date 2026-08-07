@@ -2,6 +2,7 @@ import { prisma } from "../db/client.js";
 import type { CsvTransaction } from "@csp/shared";
 import { AppError } from "../middleware/error-handler.js";
 import { normalizeDescription } from "../utils/normalize.js";
+import { recomputeNetIncome, recomputeNetIncomeForPlans } from "./net-income.service.js";
 
 /**
  * Import parsed CSV transactions into a spending plan.
@@ -77,6 +78,10 @@ export async function importTransactions(
     include: { transactions: true },
   });
 
+  // Server-side auto-categorize (above) may have tagged newly-imported rows as
+  // income, so net income could need recomputing on every import.
+  await recomputeNetIncome(planId);
+
   return importRecord;
 }
 
@@ -93,6 +98,9 @@ export async function deleteTransaction(transactionId: string, userId: string) {
     where: { id: transactionId },
     data: { deletedAt: new Date() },
   });
+  if (transaction.spendingCategory === "income") {
+    await recomputeNetIncome(transaction.import.spendingPlanId);
+  }
 }
 
 /**
@@ -106,7 +114,7 @@ export async function deleteTransaction(transactionId: string, userId: string) {
 export async function bulkDeleteTransactions(transactionIds: string[], userId: string) {
   const owned = await prisma.transaction.findMany({
     where: { id: { in: transactionIds }, import: { spendingPlan: { userId } } },
-    select: { id: true },
+    select: { id: true, spendingCategory: true, import: { select: { spendingPlanId: true } } },
   });
 
   if (owned.length !== new Set(transactionIds).size) {
@@ -117,6 +125,13 @@ export async function bulkDeleteTransactions(transactionIds: string[], userId: s
     where: { id: { in: transactionIds } },
     data: { deletedAt: new Date() },
   });
+
+  const affectedIncomePlans = owned
+    .filter((t) => t.spendingCategory === "income")
+    .map((t) => t.import.spendingPlanId);
+  if (affectedIncomePlans.length > 0) {
+    await recomputeNetIncomeForPlans(affectedIncomePlans);
+  }
 }
 
 /** Restore a soft-deleted transaction */
@@ -132,6 +147,9 @@ export async function restoreTransaction(transactionId: string, userId: string) 
     where: { id: transactionId },
     data: { deletedAt: null },
   });
+  if (transaction.spendingCategory === "income") {
+    await recomputeNetIncome(transaction.import.spendingPlanId);
+  }
 }
 
 /** Add a single manual transaction to a plan */
@@ -282,10 +300,19 @@ export async function assignCategory(
     throw new AppError("Transaction not found", 404);
   }
 
-  return prisma.transaction.update({
+  const wasIncome = transaction.spendingCategory === "income";
+  const isIncome = spendingCategory === "income";
+
+  const updated = await prisma.transaction.update({
     where: { id: transactionId },
     data: { spendingCategory, spendingSubcategory },
   });
+
+  if (wasIncome || isIncome) {
+    await recomputeNetIncome(transaction.import.spendingPlanId);
+  }
+
+  return updated;
 }
 
 /** Update a transaction's account type */
@@ -432,4 +459,8 @@ export async function deleteAllTransactions(planId: string, userId: string): Pro
   await prisma.transaction.deleteMany({
     where: { import: { spendingPlanId: planId } },
   });
+
+  // No-op once everything's gone (zero income transactions left), but keeps
+  // this consistent with every other mutation path rather than special-cased.
+  await recomputeNetIncome(planId);
 }
