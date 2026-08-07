@@ -108,7 +108,7 @@ export default function HelpPage() {
           <div className="space-y-10 min-w-0">
             <Section id="getting-started" title="Getting started" figure={<WorkflowFigure />}>
               <p>
-                After you sign in you land on your <strong>Plans</strong> page — one card per month. The
+                After you sign in, you land on your <strong>Plans</strong> page — one card per month. The
                 workflow each month is simple:
               </p>
               <ol className="list-decimal pl-5 space-y-1">
@@ -123,7 +123,7 @@ export default function HelpPage() {
             <Section id="creating-a-plan" title="Creating a plan" figure={<CreatePlanFigure />}>
               <p>
                 On the Plans page, choose a month and year and create the plan. When a previous month exists,
-                the new plan automatically <strong>carries over your gross/net income and your investment and
+                the new plan automatically <strong>carries over your gross / net income and your investment and
                 savings goals</strong> from the most recent prior month, so you only adjust what changed.
               </p>
               <p>
@@ -146,20 +146,20 @@ export default function HelpPage() {
                 tab, any <strong>deposit</strong> (a positive-amount transaction — a paycheck, a Zelle you
                 received, a reimbursement) can be tagged with an <strong>Income</strong> category, the same way
                 an expense gets tagged Fixed Costs. As soon as one deposit is tagged, Net Monthly Income switches
-                from a manual field to an <strong>automatic total</strong> of everything you&apos;ve tagged that
-                month, and every percentage on the plan (Fixed Costs %, Savings %, Guilt-Free) recalculates
+                from a manual field to an <strong>automatic total</strong>{" "}of everything you&apos;ve tagged that
+                month, and every percentage on the plan (Fixed Costs %, Savings %, Guilt-Free %) recalculates
                 against it.
               </p>
               <p>
                 <strong>Direction decides eligibility, not payment method.</strong> A Zelle you <em>received</em>{" "}
-                is a deposit — tag it Income. A Zelle you <em>sent</em> is an expense — it stays in Fixed Costs
+                is a deposit — tag it Income. A Zelle you <em>sent</em>{" "}is an expense — it stays in Fixed Costs
                 (or whichever category fits) exactly as before. The Income group in the category dropdown only
                 appears for positive-amount transactions, so there&apos;s no confusing the two.
               </p>
               <p>
                 Income categories are managed the same way Fixed Costs categories are — add, rename, or delete
                 your own from the dropdown&apos;s <em>Edit categories</em> mode — but the <strong>Income
-                section itself</strong> is a fixed part of the app and can&apos;t be renamed or removed.
+                section itself</strong>{" "}is a fixed part of the app and can&apos;t be renamed or removed.
               </p>
               <p>
                 If nothing is tagged Income yet, Net Monthly Income stays exactly as editable as it always
@@ -171,18 +171,18 @@ export default function HelpPage() {
               <p>
                 Fixed costs (rent, utilities, groceries, subscriptions, etc.) are driven by your transactions.
                 The Fixed Costs section on the plan shows <strong>only the categories that have categorized
-                transactions</strong> — it won&apos;t clutter the view with empty categories.
+                transactions</strong>{" "}— it won&apos;t clutter the view with empty categories.
               </p>
               <p>
                 A <strong>Miscellaneous</strong> buffer of 15% is added automatically on top of your fixed
                 costs (you can remove it for a month with the ✕). You can drag fixed-cost rows to reorder them.
               </p>
               <p>
-                You manage the master list of categories from the transaction <strong>category dropdown</strong>
+                You manage the master list of categories from the transaction <strong>category dropdown</strong>{" "}
                 (see below). Categories are personal to your account and shared across your plans.
               </p>
               <p>
-                <strong>Excluding a line (what-if):</strong> click the eye icon on any Fixed Costs, Investments,
+                <strong>Excluding a line (what-if):</strong>{" "}click the eye icon on any Fixed Costs, Investments,
                 or Savings line to exclude it. The line turns transparent and drops out of that section&apos;s total, so your
                 guilt-free budget updates immediately — handy for testing &quot;what if I cut this category?&quot;.
                 Click the icon again to include it. Exclusions are saved on the plan and don&apos;t delete anything.
@@ -224,15 +224,15 @@ export default function HelpPage() {
                 template (next section).
               </p>
               <p>
-                Each transaction has a <strong>Category</strong> dropdown. Click <em>Edit categories</em> inside
+                Each transaction has a <strong>category</strong> dropdown. Click <em>Edit categories</em> inside
                 it to add, rename, or delete categories. Renames and deletes apply to your current plan and any
                 other <em>unlocked</em> plans; locked plans are never changed.
               </p>
               <p>
-                In the import dialog you can set the <strong>Account type</strong> for the whole batch (Credit
+                In the import dialog you can set the <strong>account type</strong> for the whole batch (Credit
                 Card / Checking / Savings) and tell the app <strong>how amounts are shown</strong> in your file:
                 purchases as negative (e.g. Chase), purchases as positive, or a separate Debit / Credit column
-                layout. The preview marks income rows green with a <span className="text-green-600 font-medium">+</span>
+                layout. The preview marks income rows green with a <span className="text-green-600 font-medium">+</span>{" "}
                 so you can confirm before importing. Your choice is remembered per account type.
               </p>
               <p>
@@ -241,7 +241,7 @@ export default function HelpPage() {
               </p>
               <p>
                 Use the <strong>Filters</strong> button to search by description, date range, category, account
-                type, or status (all / categorized / uncategorized / duplicates). <strong>Reset Plan</strong>
+                type, or status (all / categorized / uncategorized / duplicates). <strong>Reset Plan</strong>{" "}
                 permanently deletes all transactions in the plan.
               </p>
               <p>
@@ -265,7 +265,7 @@ export default function HelpPage() {
                 <li><strong>Description</strong> — the merchant or payee</li>
                 <li><strong>Category</strong> — optional original category from your bank</li>
                 <li><strong>Type</strong> — Sale, Return, Payment, Adjustment, Debit, or Credit</li>
-                <li><strong>Amount</strong> — negative for spending, positive for income/refunds. If your bank does it the other way around, pick the matching option in the import dialog and the app flips it for you.</li>
+                <li><strong>Amount</strong> — negative for spending, positive for income / refunds. If your bank does it the other way around, pick the matching option in the import dialog and the app flips it for you.</li>
                 <li><strong>Account Type</strong> — Credit Card, Checking Account, or Savings Account</li>
                 <li><strong>Memo</strong> — optional note</li>
               </ul>
@@ -279,7 +279,7 @@ export default function HelpPage() {
               <p>
                 Duplicate detection is <strong>scoped to the current plan only</strong>. If a transaction with
                 the same date, description, and amount already exists in <em>this</em> plan, the import dialog
-                flags it. Importing the same transactions that live in a <em>different</em> month&apos;s plan will
+                flags it. Importing the same transactions that live in a <em>different</em>{" "}month&apos;s plan will
                 <strong> not</strong> flag them.
               </p>
               <p>
@@ -289,11 +289,11 @@ export default function HelpPage() {
               </p>
               <p>
                 Every import asks you to <strong>choose an account type</strong> before the Import button
-                unlocks — a specific account (Credit Card / Checking / Savings) applies it to every row, or
-                pick <strong>&quot;Use each row&apos;s value from the file&quot;</strong> if your CSV already has an
+                unlocks — a specific account type (Credit Card / Checking / Savings) applies to every row, or
+                pick <strong>&quot;Use each row&apos;s value from the file&quot;</strong>{" "}if your CSV already has an
                 Account Type column (a combined-account export, for example). Choosing that option shows a
                 heads-up if some rows don&apos;t specify one — it won&apos;t block the import, just flag them so
-                you can set them individually afterward. The Account Type can always be edited inline per
+                you can set them individually afterward. The account can always be edited inline per
                 transaction later, and you can filter by it.
               </p>
             </Section>
@@ -309,7 +309,7 @@ export default function HelpPage() {
                   history stays exactly as it was.</li>
               </ul>
               <p>
-                You can <strong>Unlock</strong> any time to edit again. A pill on the plan shows whether it&apos;s a
+                You can <strong>Unlock</strong>{" "}any time to edit again. A pill on the plan shows whether it&apos;s a
                 <em> Draft</em> or <em>Locked &amp; on dashboard</em>.
               </p>
             </Section>
@@ -330,7 +330,7 @@ export default function HelpPage() {
               </p>
               <p>
                 Below the trends, <strong>Spending vs Plan</strong>, <strong>Top Movers</strong>, and the{" "}
-                <strong>fixed costs pie chart</strong> all follow the same time range now — switch to Year or
+                <strong>fixed costs pie chart</strong>{" "}all follow the same time range now — switch to Year or
                 All-time and they sum across every locked plan in it, not just the selected month. Top Movers
                 compares against the prior locked month (Month view) or the prior calendar year (Year view); in
                 All-time view there&apos;s no natural &quot;prior&quot; period, so it says so instead of guessing.
@@ -350,20 +350,20 @@ export default function HelpPage() {
             <Section id="faq" title="Tips & FAQ">
               <p><strong>My imported transactions didn&apos;t appear right away.</strong> They save first, then
                 auto-categorize in the background. If a list ever looks stale, refresh — your data is safe.</p>
-              <p><strong>A category I deleted keeps coming back.</strong> Deleting a category also clears the
+              <p><strong>A category I deleted keeps coming back.</strong>{" "}Deleting a category also clears the
                 memory keywords tied to it, so it won&apos;t be re-applied to future imports.</p>
               <p><strong>Why is a plan missing from the dashboard?</strong> Only locked plans appear. Open it and
                 click <em>Lock plan</em>.</p>
-              <p><strong>Why was I signed out?</strong> For security, your session ends after about an hour of
+              <p><strong>Why was I signed out?</strong>{" "}For security, your session ends after about an hour of
                 inactivity. You&apos;ll get a &quot;Still there?&quot; warning with a countdown first — click
                 <em> Stay signed in</em> to continue. If it lapses, just sign in again.</p>
               <p><strong>Is my data private?</strong> Your categories, plans, and transactions are tied to your
                 account and are not visible to other users.</p>
               <p><strong>I tagged a deposit Income but Net Monthly Income didn&apos;t change.</strong> Give it a
-                moment to refresh, or check you tagged a <em>positive</em>-amount row — negative amounts (money
+                moment to refresh, or check that you tagged a <em>positive</em>-amount row — negative amounts (money
                 going out) can&apos;t be tagged Income. Untagging the last income transaction reverts to the
                 manual field.</p>
-              <p><strong>Why can&apos;t I click Import anymore?</strong> An account type is now required before
+              <p><strong>Why can&apos;t I click Import anymore?</strong>{" "}An account type is now required before
                 every import. Pick a specific one, or &quot;Use each row&apos;s value from the file&quot; if your
                 CSV already specifies it per row.</p>
             </Section>
