@@ -36,8 +36,9 @@ integrations (separate project/App from production, own database, own
 secrets). Then, before `Main` is even brought up as an option:
 
 1. Run `pnpm test` (the full Vitest suite) — it must be green.
-2. Run a full live regression pass against the deployed Test URLs: walk
-   every given/when/then scenario in
+2. Before running a full live regression pass, ask the user first and let
+   them decide how to proceed — do not launch it unprompted. If they say
+   to go ahead, walk every given/when/then scenario in
    [`docs/test-scenarios.md`](docs/test-scenarios.md), including the
    "Button sweeps" checklist, through the real Vercel Test frontend and
    real Koyeb Test backend — never localhost. Use a dedicated QA account,
