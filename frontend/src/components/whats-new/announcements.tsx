@@ -184,10 +184,76 @@ function IncomeLinkGraphic() {
 }
 
 /**
+ * A miniature donut chart plus a Month/Year/All-time pill — the two things
+ * this batch actually adds to the dashboard (the pie chart, and every card
+ * now following the period toggle instead of just the KPIs).
+ */
+function DashboardPieGraphic() {
+  const slices: { label: string; value: number; color: string }[] = [
+    { label: "Rent", value: 42, color: TEAL },
+    { label: "Groceries", value: 22, color: ORANGE },
+    { label: "Utilities", value: 14, color: "#0EA5E9" },
+    { label: "Other", value: 22, color: BEIGE },
+  ];
+  const r = 26;
+  const circumference = 2 * Math.PI * r;
+  let offset = 0;
+
+  return (
+    <div className="rounded-lg overflow-hidden border border-gray-200 bg-white p-3" aria-hidden>
+      <div className="flex items-center gap-3">
+        <svg viewBox="0 0 64 64" width="64" height="64" className="shrink-0">
+          {slices.map((s) => {
+            const dash = (s.value / 100) * circumference;
+            const el = (
+              <circle
+                key={s.label}
+                cx="32"
+                cy="32"
+                r={r}
+                fill="none"
+                stroke={s.color}
+                strokeWidth="10"
+                strokeDasharray={`${dash} ${circumference - dash}`}
+                strokeDashoffset={-offset}
+                transform="rotate(-90 32 32)"
+              />
+            );
+            offset += dash;
+            return el;
+          })}
+        </svg>
+        <div className="flex-1 space-y-0.5">
+          {slices.map((s) => (
+            <div key={s.label} className="flex items-center gap-1.5 text-[10px] font-sans text-gray-600">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
+              {s.label}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-2 inline-flex rounded-md overflow-hidden border border-gray-200 text-[9px] font-sans font-bold">
+        <span className="px-2 py-1 text-gray-400">Month</span>
+        <span className="px-2 py-1 text-white" style={{ background: TEAL }}>Year</span>
+        <span className="px-2 py-1 text-gray-400">All-time</span>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Announcements shown once per account, newest first. Add an entry here when a
  * change gives users something new they can see and use.
  */
 export const ANNOUNCEMENTS: Announcement[] = [
+  {
+    id: "whats-new:dashboard-pie-and-account-type:v1",
+    title: "A pie chart, and every dashboard card follows your date range",
+    body:
+      "The dashboard has a new fixed-costs pie chart — click a slice to jump to those transactions. Spending vs Plan and Top Movers now follow the Month/Year/All-time toggle too, instead of always showing just the selected month. Importing a CSV also now asks which account it's from, so nothing gets attributed to the wrong one.",
+    cta: { label: "Open Dashboard", href: "/dashboard" },
+    graphic: <DashboardPieGraphic />,
+  },
   {
     id: "whats-new:income-linkage:v1",
     title: "Deposits can now fill in your income",

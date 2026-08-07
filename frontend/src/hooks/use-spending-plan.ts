@@ -27,6 +27,30 @@ export function usePlan(planId: string) {
   });
 }
 
+export interface CategorySummary {
+  actual: Record<string, number>;
+  planned: Record<string, number>;
+  compareActual: Record<string, number>;
+}
+
+/**
+ * Fixed-cost category totals across a set of plans, with an optional
+ * comparison set — the dashboard's period-aware Spending vs Plan chart, Top
+ * Movers card, and pie chart all read from this one endpoint.
+ */
+export function useCategorySummary(planIds: string[], comparePlanIds: string[]) {
+  const key = [...planIds].sort().join(",");
+  const compareKey = [...comparePlanIds].sort().join(",");
+  return useQuery<CategorySummary>({
+    queryKey: ["dashboard-category-summary", key, compareKey],
+    queryFn: () =>
+      api.get<CategorySummary>(
+        `/dashboard/category-summary?planIds=${encodeURIComponent(planIds.join(","))}&comparePlanIds=${encodeURIComponent(comparePlanIds.join(","))}`
+      ),
+    enabled: planIds.length > 0,
+  });
+}
+
 /** Create a new plan */
 export function useCreatePlan() {
   const queryClient = useQueryClient();

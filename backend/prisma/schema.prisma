@@ -220,6 +220,11 @@ model TransactionImport {
   spendingPlan SpendingPlan  @relation(fields: [spendingPlanId], references: [id], onDelete: Cascade)
   transactions Transaction[]
 
+  // Postgres does not auto-index foreign keys — every query that filters
+  // transactions via import: { spendingPlanId: { in: [...] } } (listPlans,
+  // Excel export, net-income recompute, the dashboard summary) forced a
+  // sequential scan of this table without this index.
+  @@index([spendingPlanId])
   @@map("transaction_imports")
 }
 
@@ -252,6 +257,9 @@ model Transaction {
   import TransactionImport @relation(fields: [importId], references: [id], onDelete: Cascade)
 
   @@index([importId])
+  // Matches the exact filter shape shared by listPlans, the Excel export,
+  // net-income recompute, and the dashboard category-summary endpoint.
+  @@index([importId, spendingCategory, deletedAt])
   @@map("transactions")
 }
 

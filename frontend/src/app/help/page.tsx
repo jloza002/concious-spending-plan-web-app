@@ -288,8 +288,13 @@ export default function HelpPage() {
                 as soon as the rows are saved.
               </p>
               <p>
-                The <strong>Account Type</strong> column (Credit Card / Checking / Savings) can be set in your
-                CSV or edited inline per transaction, and you can filter by it.
+                Every import asks you to <strong>choose an account type</strong> before the Import button
+                unlocks — a specific account (Credit Card / Checking / Savings) applies it to every row, or
+                pick <strong>&quot;Use each row&apos;s value from the file&quot;</strong> if your CSV already has an
+                Account Type column (a combined-account export, for example). Choosing that option shows a
+                heads-up if some rows don&apos;t specify one — it won&apos;t block the import, just flag them so
+                you can set them individually afterward. The Account Type can always be edited inline per
+                transaction later, and you can filter by it.
               </p>
             </Section>
 
@@ -323,6 +328,15 @@ export default function HelpPage() {
                 The trend charts (net worth, savings rate, income) plot every locked month in the range. Click a
                 point to jump straight to that plan.
               </p>
+              <p>
+                Below the trends, <strong>Spending vs Plan</strong>, <strong>Top Movers</strong>, and the{" "}
+                <strong>fixed costs pie chart</strong> all follow the same time range now — switch to Year or
+                All-time and they sum across every locked plan in it, not just the selected month. Top Movers
+                compares against the prior locked month (Month view) or the prior calendar year (Year view); in
+                All-time view there&apos;s no natural &quot;prior&quot; period, so it says so instead of guessing.
+                In the pie chart, click a slice in Month view to jump straight to those transactions; in Year or
+                All-time view, clicking highlights the slice instead, since there&apos;s no single plan to open.
+              </p>
             </Section>
 
             <Section id="notes" title="Notes" figure={<NotesFigure />}>
@@ -349,6 +363,9 @@ export default function HelpPage() {
                 moment to refresh, or check you tagged a <em>positive</em>-amount row — negative amounts (money
                 going out) can&apos;t be tagged Income. Untagging the last income transaction reverts to the
                 manual field.</p>
+              <p><strong>Why can&apos;t I click Import anymore?</strong> An account type is now required before
+                every import. Pick a specific one, or &quot;Use each row&apos;s value from the file&quot; if your
+                CSV already specifies it per row.</p>
             </Section>
 
             <div className="pt-6 border-t border-gray-200">

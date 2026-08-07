@@ -1,7 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { NotesEditor } from "./notes-editor";
+import dynamic from "next/dynamic";
+
+// TipTap is a heavy client-only dependency the plan page never needs until
+// Notes is actually expanded — code-split it out of the initial page bundle.
+const NotesEditor = dynamic(() => import("./notes-editor").then((m) => m.NotesEditor), {
+  ssr: false,
+  loading: () => (
+    <div className="min-h-[120px] w-full px-3 py-2 text-sm font-sans text-gray-400 animate-pulse">
+      Loading editor…
+    </div>
+  ),
+});
 
 interface NotesSectionProps {
   notes: string;

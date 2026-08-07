@@ -1,29 +1,27 @@
 "use client";
 
-import { usePlans, usePlan } from "@/hooks/use-spending-plan";
-import { useTransactions } from "@/hooks/use-transactions";
-import { useBudgetTargets } from "@/hooks/use-budget-targets";
-import { buildSpendingVsPlan } from "@/lib/budget-display";
+import { usePlans, useCategorySummary } from "@/hooks/use-spending-plan";
+import { buildSpendingVsPlanFromTotals } from "@/lib/budget-display";
+import { selectRangePlans, selectComparePlans, buildPieSlices, type Period } from "@/lib/dashboard-display";
+import { fmt } from "@/components/dashboard/charts";
+import type { TrendPoint } from "@/components/dashboard/charts";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-  ReferenceLine,
-} from "recharts";
 import { useRouter } from "next/navigation";
 import { GuidedTour } from "@/components/tour/guided-tour";
 import { DASHBOARD_TOUR } from "@/components/tour/tours";
+
+// Recharts is a heavy client-only dependency — code-split it out of the
+// initial dashboard bundle so it only loads once a chart is actually shown.
+function ChartSkeleton({ height }: { height: number }) {
+  return <div className="w-full animate-pulse bg-gray-100 rounded-lg" style={{ height }} />;
+}
+const NetWorthTrendChart = dynamic(() => import("@/components/dashboard/charts").then((m) => m.NetWorthTrendChart), { ssr: false, loading: () => <ChartSkeleton height={240} /> });
+const SavingsInvestmentChart = dynamic(() => import("@/components/dashboard/charts").then((m) => m.SavingsInvestmentChart), { ssr: false, loading: () => <ChartSkeleton height={220} /> });
+const IncomeTrendChart = dynamic(() => import("@/components/dashboard/charts").then((m) => m.IncomeTrendChart), { ssr: false, loading: () => <ChartSkeleton height={220} /> });
+const SpendingVsPlanChart = dynamic(() => import("@/components/dashboard/charts").then((m) => m.SpendingVsPlanChart), { ssr: false, loading: () => <ChartSkeleton height={240} /> });
+const FixedCostsPieChart = dynamic(() => import("@/components/dashboard/charts").then((m) => m.FixedCostsPieChart), { ssr: false, loading: () => <ChartSkeleton height={220} /> });
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -31,17 +29,7 @@ const MONTH_NAMES = [
 ];
 const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 const pct = (n: number) => `${Math.round(n * 100)}%`;
-
-const TEAL = "#15302F";
-const ORANGE = "#FB4D30";
-const BEIGE = "#EEE3D2";
-const GREEN = "#22C55E";
-const SKY = "#0EA5E9";
-
-type Period = "month" | "year" | "all";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -108,7 +96,7 @@ export default function DashboardPage() {
     );
   }
 
-  const trendSeries = trendPlans.map((p) => ({
+  const trendSeries: TrendPoint[] = trendPlans.map((p) => ({
     key: `${p.year}-${String(p.month).padStart(2, "0")}`,
     label: `${MONTH_SHORT[p.month - 1]} '${String(p.year).slice(-2)}`,
     netWorth: p.totalNetWorth ?? 0,
@@ -167,7 +155,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <GuidedTour tourId="dashboard" steps={DASHBOARD_TOUR} />
+      <GuidedTour tourId="dashboard" steps={DASHBOARD_TOUR} version={2} />
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -220,58 +208,28 @@ export default function DashboardPage() {
       {showTrends && (
         <>
           <Card title="Net Worth over time" subtitle="Click a point to open that plan">
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={trendSeries} onClick={handleChartClick as never} style={{ cursor: "pointer" }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E5" />
-                <XAxis dataKey="label" stroke="#A3A3A3" fontSize={12} />
-                <YAxis tickFormatter={(v) => fmt(v)} stroke="#A3A3A3" fontSize={12} width={70} />
-                <Tooltip contentStyle={{ background: "white", border: `1px solid ${BEIGE}` }} formatter={(v) => fmt(Number(v))} />
-                <Line
-                  type="monotone"
-                  dataKey="netWorth"
-                  stroke={TEAL}
-                  strokeWidth={2.5}
-                  dot={{ r: 4 }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <NetWorthTrendChart data={trendSeries} onPointClick={handleChartClick} />
           </Card>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card title="Savings + Investment Rate" subtitle="% of net income to investments and savings">
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={trendSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E5" />
-                  <XAxis dataKey="label" stroke="#A3A3A3" fontSize={12} />
-                  <YAxis tickFormatter={(v) => `${v}%`} stroke="#A3A3A3" fontSize={12} domain={[0, 100]} />
-                  <Tooltip contentStyle={{ background: "white", border: `1px solid ${BEIGE}` }} formatter={(v, name) => [`${Math.round(Number(v))}%`, String(name)]} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                  <Area type="monotone" dataKey="investmentsPct" name="Investments" stackId="1" stroke={TEAL} fill={TEAL} fillOpacity={0.7} />
-                  <Area type="monotone" dataKey="savingsPct" name="Savings" stackId="1" stroke={SKY} fill={SKY} fillOpacity={0.7} />
-                  <ReferenceLine y={20} stroke={GREEN} strokeDasharray="3 3" label={{ value: "IWT target 20%", position: "insideTopRight", fontSize: 10, fill: GREEN }} />
-                </AreaChart>
-              </ResponsiveContainer>
+              <SavingsInvestmentChart data={trendSeries} />
             </Card>
 
             <Card title="Income trend" subtitle="Net monthly income">
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={trendSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E5" />
-                  <XAxis dataKey="label" stroke="#A3A3A3" fontSize={12} />
-                  <YAxis tickFormatter={(v) => fmt(v)} stroke="#A3A3A3" fontSize={12} width={70} />
-                  <Tooltip contentStyle={{ background: "white", border: `1px solid ${BEIGE}` }} formatter={(v) => fmt(Number(v))} />
-                  <Line type="monotone" dataKey="netIncome" stroke={ORANGE} strokeWidth={2.5} dot={{ r: 3 }} name="Net income" />
-                </LineChart>
-              </ResponsiveContainer>
+              <IncomeTrendChart data={trendSeries} />
             </Card>
           </div>
         </>
       )}
 
-      {/* Selected month detail */}
+      {/* Period detail: Spending vs Plan, Top Movers, pie chart — all period-aware */}
       {selected && (
-        <CurrentMonthSection planId={selected.id} previousPlanId={previous?.id ?? null} />
+        <PeriodDetailSection
+          period={period}
+          rangePlans={selectRangePlans(period, lockedPlans, selected)}
+          comparePlans={selectComparePlans(period, lockedPlans, selected, previous)}
+        />
       )}
     </div>
   );
@@ -332,48 +290,63 @@ function Card({ title, subtitle, children }: { title: string; subtitle?: string;
   );
 }
 
-function CurrentMonthSection({ planId, previousPlanId }: { planId: string; previousPlanId: string | null }) {
-  const { data: plan } = usePlan(planId);
-  const { data: transactions } = useTransactions(planId);
-  const { data: prevTransactions } = useTransactions(previousPlanId ?? "");
-  const { data: budgetTargets } = useBudgetTargets(plan?.month ?? 0, plan?.year ?? 0);
+function PeriodDetailSection({
+  period,
+  rangePlans,
+  comparePlans,
+}: {
+  period: Period;
+  rangePlans: { id: string }[];
+  comparePlans: { id: string }[];
+}) {
+  const router = useRouter();
+  const [highlighted, setHighlighted] = useState<string | null>(null);
+  const rangeIds = useMemo(() => rangePlans.map((p) => p.id), [rangePlans]);
+  const compareIds = useMemo(() => comparePlans.map((p) => p.id), [comparePlans]);
+  const { data: summary } = useCategorySummary(rangeIds, compareIds);
 
-  // "Planned" comes from the Budget page. It used to read PlanLineItem.amount,
-  // which the plan page overwrites with actual spend — so both bars showed the
-  // same number and the chart couldn't say anything.
+  // "Planned" comes from the Budget page, summed across every month in range.
   const spendingVsPlan = useMemo(
-    () =>
-      plan && transactions
-        ? buildSpendingVsPlan(plan.lineItems, transactions, budgetTargets ?? [])
-        : [],
-    [plan, transactions, budgetTargets]
+    () => (summary ? buildSpendingVsPlanFromTotals(summary.actual, summary.planned) : []),
+    [summary]
   );
 
   const topMovers = useMemo(() => {
-    if (!plan || !transactions || !prevTransactions) return [];
-    const validLabels = new Set(plan.lineItems.map((i) => i.label));
-    const totalByCat = (txs: typeof transactions) => {
-      const out: Record<string, number> = {};
-      for (const t of txs) {
-        if (t.isDuplicate || t.type === "Payment") continue;
-        if (!t.spendingSubcategory || !validLabels.has(t.spendingSubcategory)) continue;
-        out[t.spendingSubcategory] = (out[t.spendingSubcategory] ?? 0) + -Number(t.amount);
-      }
-      return out;
-    };
-    const now = totalByCat(transactions);
-    const prev = totalByCat(prevTransactions);
-    const labels = new Set([...Object.keys(now), ...Object.keys(prev)]);
+    if (!summary) return [];
+    const labels = new Set([...Object.keys(summary.actual), ...Object.keys(summary.compareActual)]);
     return [...labels]
-      .map((label) => ({ label, delta: (now[label] ?? 0) - (prev[label] ?? 0) }))
+      .map((label) => ({
+        label,
+        delta: (summary.actual[label] ?? 0) - (summary.compareActual[label] ?? 0),
+      }))
+      .filter((m) => Math.abs(m.delta) >= 0.5)
       .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
       .slice(0, 6);
-  }, [plan, transactions, prevTransactions]);
+  }, [summary]);
 
-  if (!plan) return null;
+  const pieSlices = useMemo(() => buildPieSlices(summary?.actual ?? {}), [summary]);
+  const pieTotal = pieSlices.reduce((s, sl) => s + sl.value, 0);
+
+  const noCompareReason =
+    period === "month"
+      ? "Needs a prior locked month for comparison."
+      : period === "year"
+      ? "Needs a prior year with locked months for comparison."
+      : "Top movers compares two periods — switch to Month or Year to see it.";
+
+  function handleSliceClick(label: string) {
+    if (period === "month" && rangePlans[0] && !label.startsWith("Other (")) {
+      router.push(`/plan/${rangePlans[0].id}/import?category=${encodeURIComponent(label)}`);
+      return;
+    }
+    // Year/All-time: no single plan to open — just highlight the slice.
+    setHighlighted((prev) => (prev === label ? null : label));
+  }
+
+  if (rangePlans.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour="dash-period-detail">
       <Card title="Spending vs Plan" subtitle="Fixed-cost categories — actual vs budgeted">
         {spendingVsPlan.length === 0 ? (
           <p className="text-sm text-gray-400 italic">
@@ -381,23 +354,13 @@ function CurrentMonthSection({ planId, previousPlanId }: { planId: string; previ
             fixed-cost transactions.
           </p>
         ) : (
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={spendingVsPlan}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E5" />
-              <XAxis dataKey="name" stroke="#A3A3A3" fontSize={11} />
-              <YAxis tickFormatter={(v) => fmt(v)} stroke="#A3A3A3" fontSize={11} width={70} />
-              <Tooltip contentStyle={{ background: "white", border: `1px solid ${BEIGE}` }} formatter={(v) => fmt(Number(v))} />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="planned" name="Planned" fill={BEIGE} />
-              <Bar dataKey="actual" name="Actual" fill={ORANGE} />
-            </BarChart>
-          </ResponsiveContainer>
+          <SpendingVsPlanChart data={spendingVsPlan} />
         )}
       </Card>
 
-      <Card title="Top movers" subtitle="Biggest category changes vs prior locked month">
-        {!previousPlanId ? (
-          <p className="text-sm text-gray-400 italic">Needs a prior locked month for comparison.</p>
+      <Card title="Top movers" subtitle={`Biggest category changes${period === "month" ? " vs prior locked month" : period === "year" ? " vs prior year" : ""}`}>
+        {comparePlans.length === 0 ? (
+          <p className="text-sm text-gray-400 italic">{noCompareReason}</p>
         ) : topMovers.length === 0 ? (
           <p className="text-sm text-gray-400 italic">No comparable spending categories yet.</p>
         ) : (
@@ -411,6 +374,44 @@ function CurrentMonthSection({ planId, previousPlanId }: { planId: string; previ
               </li>
             ))}
           </ul>
+        )}
+      </Card>
+
+      <Card
+        title="Fixed costs by category"
+        subtitle={period === "month" ? "Click a slice to see those transactions" : "Click a slice to highlight it"}
+      >
+        {pieSlices.length === 0 ? (
+          <p className="text-sm text-gray-400 italic">
+            No fixed-cost spending yet for this {period === "month" ? "month" : period === "year" ? "year" : "range"}.
+          </p>
+        ) : (
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            <FixedCostsPieChart slices={pieSlices} highlighted={highlighted} onSliceClick={handleSliceClick} />
+            <ul className="w-full sm:w-1/2 space-y-1">
+              {pieSlices.map((slice) => (
+                <li
+                  key={slice.label}
+                  onClick={() => handleSliceClick(slice.label)}
+                  className={`flex items-center justify-between gap-2 text-xs font-sans py-1 cursor-pointer rounded px-1.5 ${
+                    highlighted === slice.label ? "bg-gray-50" : ""
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5 truncate">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: slice.color }} />
+                    <span className="truncate text-gray-700">{slice.label}</span>
+                  </span>
+                  <span className="tabular-nums text-gray-500 shrink-0">
+                    {fmt(slice.value)} · {pieTotal > 0 ? Math.round((slice.value / pieTotal) * 100) : 0}%
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {/* Accessible fallback: recharts' Pie exposes nothing to screen readers natively. */}
+            <span className="sr-only">
+              Fixed costs by category: {pieSlices.map((s) => `${s.label} ${fmt(s.value)}`).join(", ")}.
+            </span>
+          </div>
         )}
       </Card>
     </div>

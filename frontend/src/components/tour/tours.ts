@@ -62,6 +62,10 @@ export const TRANSACTIONS_TOUR: TourStep[] = [
     title: "Deposits can be tagged Income",
     body: "Open a deposit's category dropdown and you'll see an Income group alongside Fixed Costs — direction decides eligibility, so this only shows up for positive amounts. Tag paychecks, Zelle transfers, or side income there and your plan's Net Monthly Income starts calculating itself.",
   },
+  {
+    title: "Account type is now required on import",
+    body: "Before importing, pick the account each row belongs to — or choose \"Use each row's value from the file\" if your CSV already has one. This keeps every transaction correctly attributed.",
+  },
 ];
 
 export const DASHBOARD_TOUR: TourStep[] = [
@@ -78,5 +82,10 @@ export const DASHBOARD_TOUR: TourStep[] = [
     selector: '[data-tour="dash-kpis"]',
     title: "Headline numbers",
     body: "Net worth, savings rate, fixed-cost share, and guilt-free budget — aggregated for the range you chose.",
+  },
+  {
+    selector: '[data-tour="dash-period-detail"]',
+    title: "Spending vs Plan, Top Movers, and a pie chart",
+    body: "All three now follow the time range you picked above, not just the selected month. The pie chart breaks fixed costs down by category — click a slice in Month view to jump straight to those transactions.",
   },
 ];

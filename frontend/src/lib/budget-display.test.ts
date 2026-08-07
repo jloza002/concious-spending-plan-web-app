@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Transaction } from "@csp/shared";
-import { buildSpendingVsPlan, classifyOverUnder } from "./budget-display";
+import { buildSpendingVsPlan, buildSpendingVsPlanFromTotals, classifyOverUnder } from "./budget-display";
 
 describe("classifyOverUnder", () => {
   it("reports spending past the budget as over", () => {
@@ -59,8 +59,8 @@ const tx = (overrides: Partial<Transaction>): Transaction => ({
   ...overrides,
 });
 
-const item = (label: string, section = "fixed_costs") =>
-  ({ section, label }) as { section: "fixed_costs"; label: string };
+const item = (label: string, section = "fixed_costs", excluded = false) =>
+  ({ section, label, excluded }) as { section: "fixed_costs"; label: string; excluded: boolean };
 
 describe("buildSpendingVsPlan", () => {
   it("pairs a category's budget against its spending", () => {
@@ -148,5 +148,38 @@ describe("buildSpendingVsPlan", () => {
       { label: "Rent", amount: 650 },
     ]);
     expect(rows).toHaveLength(1);
+  });
+
+  it("drops an excluded category from both actual and planned, not just the section total", () => {
+    const rows = buildSpendingVsPlan(
+      [item("Rent"), item("Gym", "fixed_costs", true)],
+      [
+        tx({ spendingSubcategory: "Rent", amount: -1850 }),
+        tx({ spendingSubcategory: "Gym", amount: -45 }),
+      ],
+      [
+        { label: "Rent", amount: 1850 },
+        { label: "Gym", amount: 50 },
+      ]
+    );
+    expect(rows.map((r) => r.name)).toEqual(["Rent"]);
+  });
+});
+
+describe("buildSpendingVsPlanFromTotals", () => {
+  it("unions actual and planned labels, rounding and dropping all-zero rows", () => {
+    const rows = buildSpendingVsPlanFromTotals(
+      { Rent: 1850.4, Groceries: 0 },
+      { Rent: 1850, Insurance: 165.6 }
+    );
+    expect(rows).toEqual([
+      { name: "Rent", actual: 1850, planned: 1850 },
+      { name: "Insurance", actual: 0, planned: 166 },
+    ]);
+  });
+
+  it("caps at limit bars", () => {
+    const actual = Object.fromEntries(Array.from({ length: 15 }, (_, i) => [`Cat ${i}`, 10]));
+    expect(buildSpendingVsPlanFromTotals(actual, {})).toHaveLength(10);
   });
 });

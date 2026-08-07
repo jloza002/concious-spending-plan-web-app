@@ -47,41 +47,62 @@ function countsToward(t: Transaction, label: string): boolean {
 }
 
 /**
- * Rows for the dashboard's "Spending vs Plan" chart.
- *
- * Labels are the union of the plan's fixed-cost line items and the month's
- * budget targets, so a category that was budgeted but never spent still charts
+ * Rows for the dashboard's "Spending vs Plan" chart, built directly from
+ * pre-aggregated per-label totals (e.g. the backend's category-summary
+ * endpoint, which can span several plans for Year/All-time views). Labels are
+ * the union of both maps, so a budgeted-but-unspent category still charts
  * (planned, zero) and spending in an unbudgeted category still charts (zero,
  * actual). Rows where both sides are zero are dropped, and the chart shows at
- * most ten bars.
+ * most `limit` bars.
+ */
+export function buildSpendingVsPlanFromTotals(
+  actualsByLabel: Record<string, number>,
+  plannedByLabel: Record<string, number>,
+  limit = 10
+): SpendingVsPlanRow[] {
+  const allLabels = new Set([...Object.keys(actualsByLabel), ...Object.keys(plannedByLabel)]);
+
+  return [...allLabels]
+    .map((label) => ({
+      name: truncate(label),
+      actual: Math.round(actualsByLabel[label] ?? 0),
+      planned: Math.round(plannedByLabel[label] ?? 0),
+    }))
+    .filter((row) => row.actual > 0 || row.planned > 0)
+    .slice(0, limit);
+}
+
+/**
+ * Single-plan convenience wrapper over {@link buildSpendingVsPlanFromTotals}.
+ * A category with its line item excluded (the section's "what-if" toggle) is
+ * dropped from both actual and planned — the exclude toggle means "leave this
+ * out of everything," not just the section subtotal.
  */
 export function buildSpendingVsPlan(
-  lineItems: Pick<PlanLineItem, "section" | "label">[],
+  lineItems: Pick<PlanLineItem, "section" | "label" | "excluded">[],
   transactions: Transaction[],
   budgetTargets: { label: string; amount: number }[],
   limit = 10
 ): SpendingVsPlanRow[] {
+  const excludedLabels = new Set(
+    lineItems.filter((i) => i.section === "fixed_costs" && i.excluded).map((i) => i.label)
+  );
+  const fixedLabels = lineItems
+    .filter((i) => i.section === "fixed_costs" && !i.excluded)
+    .map((i) => i.label);
+
+  const actualsByLabel: Record<string, number> = {};
+  for (const label of fixedLabels) {
+    actualsByLabel[label] = transactions
+      .filter((t) => countsToward(t, label))
+      .reduce((sum, t) => sum + -Number(t.amount), 0);
+  }
+
   const plannedByLabel: Record<string, number> = {};
   for (const target of budgetTargets) {
+    if (excludedLabels.has(target.label)) continue;
     plannedByLabel[target.label] = target.amount;
   }
 
-  const fixedLabels = lineItems
-    .filter((i) => i.section === "fixed_costs")
-    .map((i) => i.label);
-  const allLabels = new Set([...fixedLabels, ...Object.keys(plannedByLabel)]);
-
-  return [...allLabels]
-    .map((label) => {
-      const actual = transactions
-        .filter((t) => countsToward(t, label))
-        .reduce((sum, t) => sum + -Number(t.amount), 0);
-      return {
-        name: truncate(label),
-        actual: Math.round(actual),
-        planned: Math.round(plannedByLabel[label] ?? 0),
-      };
-    })
-    .filter((row) => row.actual > 0 || row.planned > 0)
-    .slice(0, limit);
+  return buildSpendingVsPlanFromTotals(actualsByLabel, plannedByLabel, limit);
 }

@@ -399,6 +399,15 @@ export async function autoCategorize(
 > {
   const mappings = await prisma.categoryMapping.findMany({ where: { userId } });
 
+  // Pre-index by normalized description for O(1) exact-match lookup. A repeat
+  // import (the common case for a returning user) is mostly exact hits on
+  // merchants seen before, so this turns the typical row from an O(mappings)
+  // scan into an O(1) lookup instead of only short-circuiting the scan early.
+  const exactByNorm = new Map<string, (typeof mappings)[number]>();
+  for (const mapping of mappings) {
+    exactByNorm.set(mapping.descriptionNormalized, mapping);
+  }
+
   const result = new Map<
     string,
     { spendingCategory: string; spendingSubcategory: string; timesUsed: number }
@@ -406,27 +415,32 @@ export async function autoCategorize(
 
   for (const description of descriptions) {
     const norm = normalizeDescription(description);
+
+    const exact = exactByNorm.get(norm);
+    if (exact) {
+      result.set(description, {
+        spendingCategory: exact.spendingCategory,
+        spendingSubcategory: exact.spendingSubcategory,
+        timesUsed: exact.timesUsed,
+      });
+      continue;
+    }
+
+    // No exact hit — fall back to the O(mappings) fuzzy scan.
     let bestMatch: (typeof mappings)[number] | null = null;
     let bestScore = 0;
 
     for (const mapping of mappings) {
       const keyword = mapping.descriptionNormalized;
 
-      // 1. Exact match
-      if (norm === keyword) {
-        bestMatch = mapping;
-        bestScore = 1;
-        break;
-      }
-
-      // 2. Substring containment (keyword appears in description or vice versa)
+      // Substring containment (keyword appears in description or vice versa)
       let score = 0;
       if (keyword.length >= 3 && norm.includes(keyword)) {
         score = 0.9;
       } else if (keyword.length >= 3 && keyword.includes(norm)) {
         score = 0.85;
       } else {
-        // 3. Jaccard token overlap
+        // Jaccard token overlap
         score = jaccardSimilarity(norm, keyword);
       }
 

@@ -428,6 +428,103 @@ expense category exactly as before.
 
 ---
 
+## Dashboard period-aware cards, pie chart, mandatory account type, performance (2026-08-07)
+
+### DB1 — Spending vs Plan and Top Movers are period-aware
+- **Given** the dashboard with several locked months, some in different years
+- **When** switching the Month/Year/All-time toggle
+- **Then** Spending vs Plan's bars and Top Movers' deltas recompute to match
+  the selected range (a single month; every locked month in the selected
+  year; every locked month ever) — previously these two cards always showed
+  the single selected month regardless of the toggle
+
+### DB2 — Top Movers' comparison period follows the same toggle
+- **Given** Month mode with a prior locked month available
+- **Then** Top Movers compares against that prior month (unchanged behavior)
+- **Given** Year mode
+- **Then** it compares against the prior calendar year's locked months, with
+  its own empty-state copy ("needs a prior year with locked months") when
+  there isn't one
+- **Given** All-time mode
+- **Then** there's no natural "prior" period, so Top Movers shows "compares
+  two periods — switch to Month or Year to see it" instead of a fabricated
+  comparison
+
+### DB3 — Fixed costs pie chart
+- **Given** any period with fixed-cost spending
+- **Then** a donut chart renders each category as a distinct-colored slice,
+  capped at 8 real categories with the remainder rolled into one "Other (N
+  categories)" slice, alongside a text legend list (also the accessible
+  fallback, since the chart itself exposes nothing to screen readers)
+- **When** clicking a slice in Month mode
+- **Then** it navigates to that month's Transactions page pre-filtered to
+  the clicked category
+- **When** clicking a slice in Year or All-time mode
+- **Then** nothing navigates — the slice highlights instead (click again to
+  un-highlight), since there's no single plan to open
+- **Given** no fixed-cost spending yet for the selected period
+- **Then** the card shows an empty-state message instead of a blank chart
+
+### DB4 — The exclude toggle and pie chart/Spending-vs-Plan agree
+- **Given** a fixed-cost category marked excluded on the current plan
+- **Then** it's absent from both the pie chart and Spending vs Plan (actual
+  and planned) — previously Spending vs Plan ignored the exclude toggle
+  entirely
+
+### DB5 — Cross-account isolation on the new summary endpoint
+- **Given** two separate accounts, each with their own locked plans
+- **Then** one account's dashboard never shows the other's categories or
+  totals, even if plan ids were guessed or replayed — the endpoint silently
+  drops any requested plan id that isn't the caller's own
+
+### AT1 — Account type is mandatory before Import unlocks
+- **Given** the Import CSV modal with a file parsed and previewed
+- **Then** the account-type selector shows a disabled "Select an account
+  type…" placeholder and the Import button is disabled
+- **When** picking any option (including "Use each row's value from the
+  file")
+- **Then** the Import button enables
+
+### AT2 — "Use each row's value from the file" stays available and non-blocking
+- **Given** a CSV with a mix of rows that do and don't specify an account
+  type column
+- **When** choosing "Use each row's value from the file"
+- **Then** an amber note shows how many rows lack a resolvable account type,
+  but Import stays enabled and proceeds — combined-account CSVs must keep
+  working
+- **When** instead choosing a specific account type (Credit Card / Checking /
+  Savings)
+- **Then** it overrides every row, the amber note disappears, and the
+  remembered sign-convention preference for that account type still loads
+  the same as it did before this change
+
+### PF1 — Performance indexes apply cleanly
+- **Given** the Test database after this batch's migration runs
+- **Then** `transaction_imports` has an index on `spending_plan_id` and
+  `transactions` has a composite index on `(import_id, spending_category,
+  deleted_at)` — purely additive, no behavior change to verify beyond "the
+  migration applies without error"
+
+### PF2 — Code-split components render without regressions
+- **Given** a plan page with Notes collapsed
+- **Then** TipTap doesn't load until Notes is expanded (network tab shows its
+  chunk requested only on expand), and the editor works normally once loaded
+- **Given** the dashboard page
+- **Then** each chart shows a brief skeleton placeholder before Recharts
+  loads, with no layout jump, hydration warning, or flash of missing content
+
+### PF3 — Auto-categorize still resolves correctly after the pre-index change
+- **Given** an account with an established category-mapping history
+- **When** importing a CSV where most descriptions exactly match previously
+  seen merchants, and a few are new/fuzzy variants
+- **Then** every description that has an exact match is still tagged
+  correctly, fuzzy matches (e.g. "NETFLIX.COM" against a saved "netflix"
+  mapping) still resolve the same as before, and the import completes
+  noticeably faster on a large file than it would scanning every mapping
+  per row
+
+---
+
 ## Button sweeps (standing practice — rule 7)
 
 A sweep means clicking every interactive control on a page or surface and

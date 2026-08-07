@@ -1,6 +1,8 @@
 "use client";
 
-import { use, useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { use, useState, useMemo, useRef, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { resolveImportRows, countMissingAccountType } from "@/lib/import-account-type";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import Papa from "papaparse";
@@ -467,15 +469,22 @@ function deriveRows(records: Record<string, string>[], convention: SignConventio
     .filter((t): t is CsvTransaction => t !== null);
 }
 
-/** Remembered sign convention per account type, stored in localStorage. */
+/**
+ * Remembered sign convention per account type, stored in localStorage. "" and
+ * "from_file" both mean "use each row's own value" and share one storage key
+ * so preferences saved before "from_file" became an explicit choice still apply.
+ */
+function signPrefKey(account: string): string {
+  return account === "" || account === "from_file" ? "_default" : account;
+}
 function loadSignPref(account: string): SignConvention | null {
   if (typeof window === "undefined") return null;
-  const v = window.localStorage.getItem(`csp:importSign:${account || "_default"}`);
+  const v = window.localStorage.getItem(`csp:importSign:${signPrefKey(account)}`);
   return v === "negative" || v === "positive" || v === "split" ? v : null;
 }
 function saveSignPref(account: string, convention: SignConvention) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(`csp:importSign:${account || "_default"}`, convention);
+  window.localStorage.setItem(`csp:importSign:${signPrefKey(account)}`, convention);
 }
 
 function ImportModal({ onClose, onImport, isImporting, existingTransactions }: ImportModalProps) {
@@ -484,8 +493,9 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
   const [isDragging, setIsDragging] = useState(false);
   // For each parsed row at index i, has the user opted to import it even if flagged as a duplicate?
   const [keepDuplicate, setKeepDuplicate] = useState<Record<number, boolean>>({});
-  // Account type to apply to the whole import. "" keeps each row's value from the CSV.
-  const [importAccount, setImportAccount] = useState<"" | "credit_card" | "checking" | "savings">("");
+  // Account type to apply to the whole import. "" means nothing chosen yet (blocks
+  // import — an explicit choice is mandatory). "from_file" keeps each row's own value.
+  const [importAccount, setImportAccount] = useState<"" | "from_file" | "credit_card" | "checking" | "savings">("");
   // How the uploaded file represents amounts (spending negative/positive, or split columns).
   const [signConvention, setSignConvention] = useState<SignConvention>("negative");
 
@@ -516,6 +526,7 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
   const keepCount = duplicateIndexes.filter((i) => keepDuplicate[i]).length;
   const skipCount = duplicateCount - keepCount;
   const rowsToImport = parsedRows.filter((_, i) => !rowIsDuplicate[i] || keepDuplicate[i]);
+  const missingAccountTypeCount = countMissingAccountType(rowsToImport);
 
   function parseFile(file: File) {
     setParseError("");
@@ -574,12 +585,8 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
   }
 
   async function handleImport() {
-    if (rowsToImport.length === 0) return;
-    // When an account type is chosen, apply it to every imported row (overrides
-    // any Account Type column in the CSV).
-    const rows = importAccount
-      ? rowsToImport.map((r) => ({ ...r, accountType: importAccount }))
-      : rowsToImport;
+    if (rowsToImport.length === 0 || importAccount === "") return;
+    const rows = resolveImportRows(rowsToImport, importAccount);
     try {
       await onImport(rows, skipCount);
       saveSignPref(importAccount, signConvention);
@@ -697,21 +704,34 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
               </div>
 
               <div className="mb-3 flex items-center gap-2 flex-wrap">
-                <label className="text-xs font-medium text-gray-600 font-sans">Account type for this import:</label>
+                <label className="text-xs font-medium text-gray-600 font-sans">
+                  Account type for this import: <span className="text-[var(--color-orange)]">*</span>
+                </label>
                 <select
                   value={importAccount}
                   onChange={(e) => setImportAccount(e.target.value as typeof importAccount)}
-                  className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-sans bg-white focus:outline-none focus:border-[var(--color-orange)]"
+                  className={`px-2.5 py-1.5 border rounded-lg text-xs font-sans bg-white focus:outline-none focus:border-[var(--color-orange)] ${
+                    importAccount === "" ? "border-amber-300" : "border-gray-200"
+                  }`}
                 >
-                  <option value="">Use values from file</option>
+                  <option value="" disabled>Select an account type…</option>
+                  <option value="from_file">Use each row&apos;s value from the file</option>
                   <option value="credit_card">Credit Card</option>
                   <option value="checking">Checking Account</option>
                   <option value="savings">Savings Account</option>
                 </select>
-                {importAccount && (
+                {importAccount && importAccount !== "from_file" && (
                   <span className="text-[11px] text-gray-400 font-sans">applied to all {rowsToImport.length} rows</span>
                 )}
               </div>
+
+              {importAccount === "from_file" && missingAccountTypeCount > 0 && (
+                <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-xs text-amber-800 font-sans">
+                    <span className="font-semibold">{missingAccountTypeCount}</span> row{missingAccountTypeCount === 1 ? "" : "s"} don&apos;t specify an account type in the file — they&apos;ll import without one. Pick a specific account type above to apply it to every row instead.
+                  </p>
+                </div>
+              )}
 
               <div className="mb-3 flex items-center gap-2 flex-wrap">
                 <label className="text-xs font-medium text-gray-600 font-sans">Amounts in this file:</label>
@@ -837,7 +857,11 @@ function ImportModal({ onClose, onImport, isImporting, existingTransactions }: I
         <div className="px-6 pb-6 flex justify-end gap-3">
           <Button variant="ghost" onClick={onClose} disabled={isImporting}>Cancel</Button>
           {parsedRows.length > 0 && (
-            <Button onClick={handleImport} disabled={isImporting || rowsToImport.length === 0}>
+            <Button
+              onClick={handleImport}
+              disabled={isImporting || rowsToImport.length === 0 || importAccount === ""}
+              title={importAccount === "" ? "Select an account type first" : undefined}
+            >
               {isImporting ? "Importing…" : `Import ${rowsToImport.length} Transaction${rowsToImport.length === 1 ? "" : "s"}`}
             </Button>
           )}
@@ -1215,6 +1239,18 @@ export default function TransactionsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: planId } = use(params);
+  return (
+    <Suspense fallback={<div className="text-center py-12 text-gray-500 font-sans">Loading…</div>}>
+      <TransactionsPageContent planId={planId} />
+    </Suspense>
+  );
+}
+
+function TransactionsPageContent({ planId }: { planId: string }) {
+  const searchParams = useSearchParams();
+  // A `?category=` URL param (e.g. from a dashboard pie-chart click) pre-fills
+  // and opens the filter panel on first render.
+  const categoryFromUrl = searchParams.get("category") ?? "";
   const queryClient = useQueryClient();
   const { data: plan } = usePlan(planId);
   const { data: transactions, isLoading } = useTransactions(planId);
@@ -1236,7 +1272,7 @@ export default function TransactionsPage({
   const [showImport, setShowImport] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(!!categoryFromUrl);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1246,7 +1282,7 @@ export default function TransactionsPage({
   >(null);
 
   // Filter state
-  const [filterCategory, setFilterCategory] = useState("");
+  const [filterCategory, setFilterCategory] = useState(categoryFromUrl);
   const [filterKeyword, setFilterKeyword] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
@@ -1438,7 +1474,7 @@ export default function TransactionsPage({
   return (
     <div className="space-y-6">
       {/* v2: added the income category group step */}
-      <GuidedTour tourId="transactions" steps={TRANSACTIONS_TOUR} version={2} />
+      <GuidedTour tourId="transactions" steps={TRANSACTIONS_TOUR} version={3} />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
