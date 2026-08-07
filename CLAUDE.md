@@ -49,6 +49,13 @@ secrets). Then, before `Main` is even brought up as an option:
 4. Only after a clean pass, ask the user explicitly whether to promote to
    `Main`. Wait for an explicit yes — never push `Main` unprompted, even
    after a clean pass.
+5. After pushing to `Main`, run a **read-only** health check against the
+   live production URLs once the deploy finishes: the frontend loads, a
+   public page (e.g. `/help`) renders current content, the browser console
+   has no errors, and network requests succeed (a working
+   `/api/auth/session` call confirms the frontend can reach the backend).
+   Never sign in or take any mutating action against production — it holds
+   real user data, not a QA account.
 
 `Main` is the production deploy branch: pushing it triggers the Vercel
 production deploy and is what the production Koyeb App watches. It should
